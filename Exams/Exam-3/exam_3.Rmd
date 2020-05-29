@@ -1,0 +1,259 @@
+---
+title: "exam_3"
+author: "James Hutt"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(skimr)
+library(gt)
+library(tidyr)
+library(broom)
+library(janitor)
+library(tidyverse)
+```
+## Question 1: Exploratory Data Analysis
+
+1A)	I hypothesise that the correlation coefficient between number of migrants and amount of money they send home will be positive. I expect the relationship to be significant and relatively large as I suspect that each migrant sends a relatively similar amount of money home and so the variation in total amount of money sent home will largely be explained by number of migrants. We should control for age and gender of migrants, given different earning power. We may also wish to control for time spent in receiving country, which may well be significant. 
+
+<br/>
+1B) 
+<br/> 
+```{r q1_data, echo=FALSE}
+
+# Reading into an object. All columns are read in with appropriate data types so
+# no specification needed. na.strings argument added to make sure that the
+# missing data is loaded as NA
+
+migrants <- read.csv("raw-data/number_migrants.csv",
+                     na.strings = c("", "NA"))
+
+# Read in remittances. Take only the top 211 rows which is number of
+# observations and drop the trailing source notes. Use janitor to tidy names so
+# that country variable has a sensible name. Ultimately use rename function to
+# make this exactly the name we want
+
+remittances <- read.csv("raw-data/Remittances.csv", 
+                        na.strings = c("", "NA")) %>%
+  head(211) %>%
+  clean_names() %>%
+  rename(country = i_country)
+
+# Pivot migrants longer. Note that year is initially stored as a string. Making
+# country a str not factor to avoid error message in the join
+
+migrants <- migrants %>%
+  pivot_longer(migrants_1990:migrants_2015, 
+               names_to = "year", 
+               names_prefix = "migrants_", 
+               values_to = "migrants", 
+               values_drop_na = FALSE) %>%
+  mutate(country = as.character(country), 
+         continent = as.character(continent))
+
+# Pivot remittances longer. Note that year is initially stored as a string.
+# Making country a str not factor to avoid error message in the join
+
+remittances <- remittances %>%
+  pivot_longer(remittances_1990:remittances_2015,
+               names_to = "year",
+               names_prefix = "remittances_",
+               values_to = "remittances", 
+               values_drop_na = FALSE) %>%
+  mutate(country = as.character(country))
+
+# Merge data sets. Using inner_join as we need both sets of data in the final
+# tibble. Filter out rows where migrants or remittances is missing or 0. 
+
+joined_data <- inner_join(migrants, 
+                          remittances, 
+                          by=c("year" = "year",
+                               "country" = "country")) %>%
+  filter(!is.na(migrants), 
+         !is.na(remittances), 
+         migrants > 0, 
+         remittances > 0)
+  
+  
+
+```
+
+```{r q1b, echo=FALSE}
+
+# Mutate year to a factor so that it colours properly
+
+joined_data %>%
+  mutate(year = as.factor(year)) %>%
+ggplot(aes(migrants, remittances, color = year)) +
+  geom_point() + 
+  theme_classic() + 
+  labs(title = "Relationship of Number of Migrants to Amount of Remittance Outflows",
+       subtitle = "Data from United Nations and World Bank") + 
+  scale_y_continuous(name = "Remittance Outflows (in $M)") + 
+  scale_x_continuous(name = "Number of Migrants in a Country in a Given Year") + 
+  scale_color_discrete(name = "Year")
+
+# Mutate data to logs 
+
+joined_data <- joined_data %>%
+  mutate(log_migrants = log(migrants), log_remittances = log(remittances))
+
+# Replot plot 
+
+joined_data %>%
+  mutate(year = as.factor(year)) %>%
+ggplot(aes(log_migrants, log_remittances, color = year)) +
+  geom_point() + 
+  theme_classic() + 
+  labs(title = "Relationship of Log Number of Migrants to Log Amount of Remittance Outflows",
+       subtitle = "Data from United Nations and World Bank") + 
+  scale_y_continuous(name = "Log Remittance Outflows (in $M)") + 
+  scale_x_continuous(name = "Log Number of Migrants in a Country in a Given Year") + 
+  scale_color_discrete(name = "Year")
+
+```
+
+1C) <br/>
+```{r 1c, echo=FALSE}
+
+# Group by year and summarise
+
+joined_data %>%
+  group_by(year) %>%
+  summarise(cc = cor(log_migrants, log_remittances)) %>%
+  gt() %>%
+  tab_header(title = "Correlation Coefficient between log migrants and log remittances over time",
+     subtitle = "Data from United Nations and World Bank") %>%
+  cols_label(year = "Year",
+             cc = "Correlation Coefficient")
+
+```
+
+<br/> 
+As expected the coefficient is positive. We can not tell yet at what level it is significant but visually the trend looks quite strong. In 2015, the correlation was 72%, a strong positive linear relationship. 
+
+<br/> 
+
+## Question 2: Running and Interpreting Regressions
+
+2A) <br/>
+
+```{r q2a, echo=FALSE}
+
+# Save model as an object in case needed later 
+
+log_log_model <- lm(log_remittances ~ log_migrants, data = joined_data) 
+
+log_log_model %>%
+  tidy(conf.int = TRUE) %>%
+  select(term, estimate, conf.low, conf.high) %>%
+  gt() %>%
+  fmt_number(columns = vars(estimate, conf.low, conf.high), 
+             decimals = 2) %>%
+  tab_header(title = "Effect of Number of Migrants on Amount of Remittances",
+     subtitle = "Both IV and DV are logged") %>%
+  cols_label(term = "Variable",
+             estimate = "Estimate",
+             conf.low = "Lower bound",
+             conf.high = "Upper bound")
+
+```
+<br/>
+2B) The average treatment effect of more migrants is best expressed in percentage terms, the elasticity. A 1% increase in the number of migrants in the country is associated with an 0.84% increase in remittances sent from the country. This is the ATE of more migrants. Given the confidence intervals of 0.77 and a 0.90 the Bayseian would be 95% sure that the true value of the elasticity lies within this range, whilst a frequentist who ran this experiment a large number of times would expect the observe elasticity to be within this range 95% of the time. 
+
+<br/>
+2C) <br/>
+
+Calculate fitted value: $$ ln(remittances) = -5.63 + 0.84 * ln(migrants) $$
+
+<br/>
+$$ ln(remittances) = -5.62 + 0.84 * 17.69 = 9.23 $$
+<br/>
+We can get the same result from the predict function, with the difference due to rounding: 
+```{r 2c, echo=TRUE}
+
+# store as variable to report in Rmd. 
+
+q2c <- predict(log_log_model, newdata = tibble(log_migrants = 17.69))
+
+```
+
+Fitted value using predict function is `r round(q2c,2)`.
+
+<br/> 
+
+## Question 3: Multivariate regression
+
+3A) <br/>
+
+```{r q3, echo=FALSE}
+
+int_model <- lm(log_remittances ~ (log_migrants * continent), data = joined_data)
+
+int_model %>%
+  tidy(conf.int = TRUE) %>%
+  select(term, estimate, conf.low, conf.high) %>%
+  gt() %>%
+  fmt_number(columns = vars(estimate, conf.low, conf.high), 
+             decimals = 2) %>%
+  tab_header(title = "Effect of Number of Migrants on Amount of Remittances",
+     subtitle = "Both IV and DV are logged") %>%
+  cols_label(term = "Variable",
+             estimate = "Estimate",
+             conf.low = "Lower bound",
+             conf.high = "Upper bound")
+  
+
+```
+<br/>
+3B) We first must note that the omitted catory (continent) is Africa. Thus, the estimates of the intercept and log_migrants coefficients are the regression coefficients for Africa. That is, in Africa: 
+
+$$ ln(remittances) = -3.98 + 0.62 * ln(migrants) $$
+
+The coefficient continentAmericas is the adjustment to the intercept which we must make when America = 1, that is, in America rather than in Africa. Similarly, the interaction coefficient log_migrants:continentAmericas is the adjustment to the gradient (which we are interpreting as the elasticity) for Americas, relative to the Africa value. 
+
+In the Americas: 
+
+$$ ln(remittances) = -3.98 - 2.45 + (0.62 + 0.29) * ln(migrants) $$
+
+$$ ln(remittances) = -6.43 + 0.91 * ln(migrants) $$ 
+
+With the same interpretation as before, we can say that a 1% increase in migrants present in an American country is associated with a 0.91% increase in remittances from that country. 
+
+## Question 4: Running many regressions
+
+```{r q4, echo = FALSE}
+
+# Following the nesting procedure from previous PS. We are only looking for
+# coefficient on log_migrants so can filter by term. Using the tidy CIs because
+# they have been shown to be reliably close
+
+joined_data %>%
+  select(year, log_migrants, log_remittances) %>% 
+  group_by(year) %>%
+  nest() %>%
+  mutate(mod = map(data, ~ lm(log_remittances ~ log_migrants, data = .)),
+         reg_results = map(mod, ~ tidy(., conf.int = TRUE))) %>%
+  unnest(reg_results) %>%
+  filter(term == "log_migrants") %>% 
+  select(year, estimate, conf.low, conf.high) %>%
+  arrange(year) %>%
+  ungroup() %>%
+  gt() %>%
+  fmt_number(columns = vars(estimate, conf.low, conf.high), 
+             decimals = 2) %>%
+  tab_header(title = "Effect of Number of Migrants on Amount of Remittances over Time",
+     subtitle = "Both IV and DV are logged") %>%
+  cols_label(year = "Year",
+             estimate = "Estimated Coefficient",
+             conf.low = "95% CI Lower bound",
+             conf.high = "95% CI Upper bound")
+         
+  
+
+
+```
+
+
+

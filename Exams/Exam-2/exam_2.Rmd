@@ -1,0 +1,199 @@
+---
+title: "exam_2"
+author: "James Hutt"
+date: "27/03/2020"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(Ecdat)
+library(infer)
+library(gt)
+library(tidyverse)
+
+# Change settings so that numbers are not displayed in scientific notation by
+# default
+
+options(scipen = 999)
+
+# Details of the Ecdat library, including variable descriptions for the HI
+# dataset are available here:
+# https://cran.r-project.org/web/packages/Ecdat/Ecdat.pdf
+
+```
+```{r q1a, echo=FALSE}
+
+# From the library manual we are looking for rows which contain no for hhi and
+# whi as a percentage of total rows. Saved to a variable to report in the Rmd.
+
+q1a <- HI %>%
+  filter(hhi == "no", whi == "no") %>%
+  count() * 100  / count(HI) 
+
+```
+
+## Question 1 
+
+1A) `r round(q1a, 2)` percent of men in the sample are married to women who are neither covered by their husband’s insurance (hhi) nor have health insurance from their own work (whi)
+
+```{r q1b, echo=FALSE}
+
+set.seed(1)
+
+# Subset the data to black men
+
+HI_black <- HI %>%
+  filter(race == "black")
+
+# Produce a tibble containing the results of performing bootstrap resampling to
+# produce 1000 samples, each of which we then find the mean for
+
+HI_black_resamples <- HI_black %>%
+  rep_sample_n(size = 1241, replace = TRUE, reps = 1000) %>%
+  group_by(replicate) %>%
+  summarise(avg_inc = mean(husby))
+
+# Save the lower and upper CIs to variables to report. 90% CI requires 5% and
+# 95% quantile
+
+q1b_lower <- HI_black_resamples %>%
+  pull(avg_inc) %>%
+  quantile(probs = 0.05)
+
+q1b_upper <- HI_black_resamples %>%
+  pull(avg_inc) %>%
+  quantile(probs = 0.95)
+
+# Multiply by 1000 and round to 0 dp to respect the original precision of the
+# data, which was given to $1 precision
+
+q1b_lower <- round(q1b_lower * 1000, 0)
+q1b_upper <- round(q1b_upper * 1000, 0)
+
+```
+
+1B) The upper bound of this confidence interval is `r q1b_upper` and the lower bound of this interval is `r q1b_lower`.
+
+1C) A true value for mean annual income for the total population, married black men, exists. Given the data we should be 90% certain that this true value lies between the lower and upper bounds of the confidence interval, or alternatively, there is a 90% chance that the true value lies in this range. This is the Bayesian interpretation. The frequentist interpretation would say if we kept performing this sampling exercise on the population, 90% of the time the mean income of our sample would fall between the upper and lower bounds. 10% of times it would lie outside.
+
+<br/>
+1D) 
+
+```{r q1d, echo=FALSE}
+
+# Create a subsetted dataset with just the columns of interest. Make the total
+# kids variable a factor to allow color plotting, using case_when then add the
+# True condition as error in order to check that we aren't accidentally dropping data. In this case we are not.
+
+HI_kids <- HI %>%
+  select(whrswk, kidslt6, kids618) %>%
+  mutate(totalkids = kidslt6 + kids618) %>%
+  mutate(f_totalkids = case_when(totalkids == 0 ~ "0",
+                                 totalkids == 1 ~ "1", 
+                                 totalkids == 2 ~ "2", 
+                                 totalkids > 2 ~ "3 or more", 
+                                 TRUE ~ "error")) %>%
+  mutate(f_totalkids = as.factor(f_totalkids))
+
+# Save the graph object to a variable to include in the Rmd
+
+HI_kids_chart <- HI_kids %>%
+  ggplot(aes(whrswk, fill = f_totalkids)) + 
+  geom_density(alpha = 0.4) + 
+  scale_fill_viridis_d() + 
+  theme_classic() + 
+  labs(title = "Hours Wife Works A Week",
+       caption = "Data from Olson (1998)", 
+       x = "Hours Worked", 
+       y = "Density", 
+       fill = "Kids")
+
+HI_kids_chart
+
+```
+<br/>
+
+```{r q2, echo=FALSE}
+
+# Specify the default file name in the function definition
+
+my_cold_call <- function(file_name = "raw-data/students.csv"){
+  
+  # First randomly select a number from 1:7
+  
+  n <- sample(1:7, size = 1)
+  
+  # Create a tibble from the csv file. Data has only 1 col, no blank rows at the
+  # top and a header. col-names is true to pull the header as the variable name
+  # and col_types set to c which forces the values to string
+  
+  x <- read_csv(file = file_name, col_names = TRUE, col_types = "c")
+  
+  # Third, it should draw the sampled number of names from the “name” column in
+  # the csv
+  
+  sample_mcc <- sample_n(x, size = n, replace = TRUE)
+  
+  # Finally, it returns these names as a character vector. 
+  
+  pull(sample_mcc, name)
+  
+}
+
+```
+
+
+## Question 2
+2A)
+```{r q2a, echo=TRUE}
+
+# Commented out the set seed which was used for testing but not needed for the
+# submission
+
+# set.seed(10)
+
+my_cold_call()
+
+```
+
+2B)
+```{r q2b, echo=FALSE}
+
+days <- tibble(Day = 1:36,
+                Students = map(1:36, ~ my_cold_call()))
+
+days %>%
+  head(4) %>%
+  gt() %>%
+  tab_header(title = "Cold Calls",
+             subtitle = "First Four Days of Class")
+
+```
+
+2C)
+```{r q2c, echo=FALSE}
+
+# Mutate the tibble to add a logical column checking if any of those 3 students
+# are called
+
+days <- days %>%
+  mutate(unlucky = map_lgl(Students, 
+                 ~ ifelse(any(. %in% c("Eliot Min",
+                                       "Rachel Auslender",
+                                       "Makenna Famulari")),
+                          TRUE,
+                          FALSE)))
+
+# Store the proportion in a variable to call in the Rmd answer. We can just use
+# sum to count the true values since TRUE is stored as 1 and FALSE as 0
+
+q2c <- sum(days$unlucky) / count(days)
+
+# Multiply by 100 to get a % and format to 2 dp
+
+q2c <- round(q2c * 100, 2)
+
+```
+At least one of Eliot Min, Rachel Auslender, OR Makenna Famulari will be called on `r q2c` percent of days in the class. 
+

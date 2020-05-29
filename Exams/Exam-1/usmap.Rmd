@@ -1,0 +1,48 @@
+---
+title: "usmap"
+author: "James Hutt"
+date: "26/02/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidycensus)
+library(tidyverse)
+```
+
+```{r loadrural, echo=FALSE}
+
+rural <- get_decennial(geography = "state",
+                       variables = c("P001001", "P002005"),
+                       year = 2010,
+                       output = "wide",
+                       geometry = TRUE) %>%
+  rename(state = NAME) %>%
+  mutate(prop_rural = P002005/P001001,
+         state = reorder(state, prop_rural))
+
+rural %>%
+  filter(! state %in% c("Alaska", "Hawaii", "Puerto Rico")) %>%
+  ggplot(aes(fill = prop_rural)) +
+  geom_sf()
+
+
+```
+```{r color_by_pop, echo=FALSE}
+
+rural %>%
+  filter(! state %in% c("Alaska", "Hawaii", "Puerto Rico")) %>%
+  ggplot(aes(fill = P001001)) +
+  geom_sf() + 
+  scale_fill_viridis_c(option = "plasma",
+                       direction = -1) +
+  labs(title = "Population Distribution of United States",
+       caption = "Source: Census 2010",
+       fill = "Total Population") +
+  theme_void() + 
+  scale_fill_continuous(trans = "log10", 
+                        breaks = c(1000000, 2000000, 5000000, 10000000, 20000000), 
+                        labels = c("1m", "2m", "5m", "10m", "20m"))
+```
+

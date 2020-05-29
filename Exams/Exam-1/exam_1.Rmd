@@ -1,0 +1,334 @@
+---
+title: "exam_1_copy"
+author: "James Hutt"
+date: "21/02/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(janitor)
+library(gt)
+library(forcats)
+library(lubridate)
+library(tidyverse)
+```
+
+```{r data, include=FALSE}
+x <- read_csv("raw-data/paris.csv", 
+              na = c("", "NA")) %>% 
+  clean_names()
+
+y <- read_csv("raw-data/WB_co2_emissions.csv", 
+              skip = 4,
+              na = c("", "undefined")) %>%
+  clean_names()
+
+```
+
+```{r madlib_answers, echo=FALSE}
+x1 <- x %>%
+  filter(!is.na(emissions)) %>% # Remove missing values
+  arrange(desc(emissions)) %>% # Order from ighest to lowest emissions
+  slice(1) %>%
+  pull(name)
+
+
+# Following the Piazza instructions missing values are not included 
+# in this count.
+# If we were to include them we would add "| is.na(kind)" 
+# and get the answer 20. 
+
+x2 <- x %>%
+  filter(kind != "Ratification") %>% # All kinds that are not ratified or NA
+  tally()
+
+x3 <- x %>%
+  filter(kind == "Ratification") %>% 
+  # Only countries which have ratified can have this gap
+  mutate(gap = ratification - signature) %>% 
+  # Add a column specifying gap
+  # Dates are stored as integers with each day a count of 1 higher 
+  # The gap is just one date-integer minus the other
+  select(name, gap) %>% # Unnecessary but makes viewing for code checking
+  arrange(-gap) %>% 
+  slice(1) %>%
+  pull(gap)
+
+x4 <- x %>%
+  filter(kind == "Ratification") %>% 
+  # Only countries which have ratified 
+  mutate(stan = ifelse(endsWith(name, "stan"), 1, 0)) %>%
+  # Adds a numerical value for -stan countries
+  filter(stan == 1) %>%
+  tally()
+  # Counts rows which have matched both filters 
+  
+
+x5 <- y %>%
+  filter(!is.na(x1960)) %>% # Remove missing vales
+  arrange(desc(x1960)) %>% # Arrange highest to lowest 
+  slice(1) %>%
+  pull(country_name)
+
+x6 <- y$x2000 %>% # Select the vector of values from this column
+  mean(na.rm = TRUE) %>% # Remove the NA values and take the average of the rest
+  round(2)
+```
+
+## Question 1
+
+The highest emissions are from the country `r x1`.
+
+The number of countries that have neither ratified nor approved of the treaty is `r x2`. (Acceptance and accession do not count as approval).
+
+The longest number of days between signature and ratification (for a country that has successfully ratified) is `r x3` days.
+
+The number of ratifying countries whose name ends with “stan” is `r x4`.
+
+In 1960, the country with the highest emissions (per capita) was `r x5`.
+
+The average emissions in 2000 was `r x6` metric tons per capita.
+
+<br/><br/>
+
+## Question 2
+
+```{r y_manipulations, include=FALSE}
+
+y_long <- y %>%
+  pivot_longer(cols = starts_with("x"),
+               names_to = "year",
+               names_prefix = "x",
+               values_to = "emissions_per_capita"
+  ) %>%
+  mutate(year = as.numeric(year))
+# Janitor has conveniently renamed all year variables to start with x.
+# Thus the selection can quickly pick up all the year variables using 
+# the starts_with helper function. 
+
+# Mutated year from chr to numeric variable to allow manipulation further on, eg
+# use as a continuous variable on the x axis and to match with the years in the
+# Paris data set
+
+y_joined <- y_long %>%
+  left_join(x,
+            by = c("country_code" = "code"),
+            suffix = c("_observation", "_paris_observation")
+  )
+# Left join used as most data in the y table, so the aim is to supplement
+# it with Paris ratification date. 
+# For this reason, I am not interested in adding countries which are mentioned
+# in the Paris dataset but for which I have no data from preceding years.
+# Inner_join would have risked deleting data which had no information in the 
+# Paris dataset which I did not want. 
+
+# Joined to the tidy version of the data so we can readily manipulate and plot
+# with the Paris data included
+
+# Having read Alyssas post, even though the plot will not necessarily use the
+# data which is joined on country and year, the below table contains data which
+# is joined on both variables. In theory this would allow us to compare the
+# total emissions data from Paris with the per capita emissions data from WB_co2
+# for the single year for which we have this data.
+
+y_joined_year_country <- y_long %>%
+  inner_join(x,
+            by = c("country_code" = "code", "year" = "year"),
+            suffix = c("_observation", "_paris_observation")
+  ) 
+
+# Inner join was used to ensure that only data entries which were from the year
+# for which the Paris data set had data were kept. Thus, each row in the new
+# tibble represents a country, which for 1 year we have a per capita and a total
+# emissions figure from the 2 different data sets
+
+
+```
+```{r data_check, include=FALSE}
+
+ratified <- x %>%
+  filter(kind == "Ratification") %>%
+  pull(code)
+
+full_data <- y %>%
+  pull(country_code)
+
+'%!in%' <- function(x,y)!('%in%'(x,y))
+# There is no opposite of the %in% operator in R built in so here 
+# I define one 
+
+x %>% 
+  filter(code %in% ratified & code %!in% full_data) %>%
+  glimpse()
+
+# I was trying to subset the WB_co2_emissions data to just countries which had
+# ratified the Paris agreement. I expected to get 177 countries, with 60
+# observations each. Instead I got 175 countries. The above code chunk, not
+# included in the final report, produces the two countries who have ratified the
+# Paris agreement but for whom no data is given. They are Cook Islands and Niue.
+# This gives me confidence that 175 is the correct number of countries to be
+# observing in the subset.
+
+```
+
+
+```{r plot_failed, echo=FALSE}
+
+y_joined_ratified <- y_joined %>%
+  select(country_name, year_observation, emissions_per_capita, kind, ratification) %>% # Reduce to variables of interest
+  filter(kind == "Ratification") %>% # Select the 175 countries
+  mutate(rat_year = year(ratification)) %>%
+  mutate(status = ifelse(year_observation < rat_year,
+                         "Not Yet Ratified",
+                         ifelse(year_observation == rat_year,
+                                "Ratification Year",
+                                "Ratified")))
+# Adding two columns to the table with the end goal of adding ratification
+# status for each observation. This could have been done in 1 step but this
+# allowed troubleshooting and modification if desired in the future. 
+# By adding ratification status to each observation we can now easily view
+# Which data is pre and post ratification.
+
+# After carrying out this process I observed all the data in wb_co2_emissions 
+# comes from before the Paris Accord. It would be nice to observe in future
+# with more data what happened after ratification. 
+# This could be achieved by updating the original csv file. 
+
+
+```
+
+```{r plot, echo=FALSE}
+
+y_joined_ratified_GBR <- y_joined_ratified %>%
+  mutate(year_observation = as.double(year_observation)) %>%
+  # Converted year to double from chr to allow modification of a continuous
+  # variable on the x axis of the chart
+  filter(country_name == "United Kingdom" &
+           !is.na(emissions_per_capita))
+# I decided to make a separate object for the GBR data for two reasons. Firstly
+# to make it easier to come back to and examine further. Secondly, to make it
+# easier to pull variables out of for the plot, In this example by pulling the
+# ratification year dynamically, rather than by hard coding the value. Making a
+# separate object also allowed me to check the data integrity before plotting.
+
+# I decided to replicate the plot with a different country (my own) because
+# without data from after the Paris accord there is no benefit in showing before
+# vs after. Instead the most interesting trend is to view the trend over time
+# into the signature of the agreement
+
+y_joined_ratified_GBR %>%
+  ggplot(aes(year_observation, emissions_per_capita)) + 
+  geom_point() + 
+  labs(title = "United Kingdom's CO2 Emissions Per Capita",
+       x = "Year",
+       y = "Metric Tons Per Capita") + 
+  theme_classic() +
+  # Removes grid lines and unnecessary formatting as the relatively high number
+  # of data points makes the trend relatively easy to see
+  scale_x_continuous(breaks = seq(1960, 2030, 20), 
+                     limits = c(1959, 2021)) + 
+  # Creating the limits just beyond the data means that both a 1960 and 2020
+  # label will be shown. I think adding the 2020 label makes it more legible
+  # than having the last x axis marker as 2000 because the last data is from
+  # 2014. Labels every 20y to avoid dates overlapping. 
+  geom_vline(xintercept = y_joined_ratified_GBR$rat_year[1]) + 
+  # Dynamically added the x intercept, rather than hard coding it to make the
+  # code more generalizable to other countries. It would be possible to write a
+  # script which replaced the country code at the end of the name and produced
+  # the same plot for each country.
+  annotate(geom = "text", 
+           x = 2018, 
+           y = 9, 
+           label = "Year Paris Accord Took Effect", 
+           angle = 90,
+           color = "blue"
+           )
+  # Located the label to the right side of the line to avoid clashing with data.
+  # Y value chosen to centre the text vertically approximately. Angle = 90 to
+  # avoid the text overlapping any data
+    
+```
+<br/><br/>
+
+Q2 note: Following the advice from the [Piazza](https://piazza.com/class/k5y1jx0s5ibe1?cid=204) 
+post I have tried to show that 
+(1) a tibble can be created which is joined on two variables and 
+(2) that I can present data effectively from across the two data sets.
+The tibble joined on 2 variables is included in the Rmd file but not used to
+produce a chart, because the data is quite limited as far as comparison goes. 
+Instead I have produced a chart analgous to the Mexico chart given as an example
+which dynamically pulls the year of ratification from the Paris data set and 
+annotates this on the WB_CO2 data as a vertical line. 
+<br/><br/>
+
+## Question 3
+
+```{r q3, echo=FALSE}
+
+RCM <- x %>%
+  filter(kind == "Ratification") %>%
+  select(name) %>%
+  # The only variable we need from the Paris data is name, once we have taken
+  # the subset of only ratified countries
+  mutate(treatment = ifelse(startsWith(name, "A") | 
+                              startsWith(name, "E") | 
+                              startsWith(name, "I") | 
+                              startsWith(name, "O") | 
+                              startsWith(name, "U"),
+                            1, 
+                            0),
+         # First make the treatment column as all other columns depend on this
+         # assignment. It would have been possible to use shorter code to make
+         # this assignment, eg with grepl() and RegEx but the choice of 5
+         # conditionals with or operators between them makes it clearer to see,
+         # as RegEx are hard to read
+         control = ifelse(treatment == 1, 0, 1),
+         # This is just the xor of treatment
+         under_control = ifelse(treatment == 1, "?", "Change in Emissions in \n 1y following treatment"),
+         under_treatment = ifelse(treatment == 1, "Change in Emissions in \n 1y following treatment", "?"))
+# No data is entered for the under_control or under_treatment variables because,
+# by my reading of the exam Q, the set up is that we are about to give the
+# countries this money. Thus, the observed variable will be observed in the
+# future, after treatment or control. Thus, I have included in text where we
+# will make this observation. I have written "Change in Emissions" because this
+# will be what is compared, rather than the outright levels. ? represents values
+# which we will never be able to observe
+
+RCM %>% 
+  filter(name %in% c("Albania", 
+                     "Andorra", 
+                     "Bahrain", 
+                     "Belize", 
+                     "Egypt", 
+                     "France", 
+                     "India", 
+                     "Oman", 
+                     "Pakistan", 
+                     "Uganda", 
+                     "United Republic of Tanzania", 
+                     "Zimbabwe")) %>%
+  # These countries are a representative selection which include countries
+  # starting with all 5 vowels and a variety of countries starting with
+  # consonants. Chosen only to give a representative table for the report.
+  gt() %>%
+  cols_label(name = "Country", 
+             treatment = "Treatment",
+             control = "Control",
+             under_control = "Under Control",
+             under_treatment = "Under Treatment") %>%
+  # Reformating column labels for presentation purposes
+  tab_header(title = "RCM Setup for Experiment with Ratified Countries", 
+             subtitle = "Selected Examples of Treatment Assignment") %>%
+  tab_footnote(footnote = "Treatment is a $1b fund to fight climate change. Assignment is by first letter of country name", 
+               locations = cells_title("title")) %>%
+  # Footnote added to quickly let the viewer see what the treatment is
+  tab_spanner(label = "Potential Outcomes", 
+              columns = vars("under_control","under_treatment"))
+
+
+```
+<br/><br/>
+Explanation: This table shows a framework to determine the causal effect of giving a country 1 billion dollars on subsequent emissions. We cannot observe countries under both cases – treatment and no treatment – because the effects would be cumulative, instead we “randomly” assign countries to the two treatments. We assume that the average response to treatment will be the same, however we randomly allocate countries between the two groups. By observing the difference in responses between the two groups we suggest that it was the treatment which caused the variation in outcome. Here the outcome is the change in emissions in the year following treatment (or lack of treatment). The “?“ represent data it will be impossible to collect – we will never know how, eg Albania, would have reacted in the control case, because it has received the money. The assignment mechanism was: countries which start with a vowel get the money. Whilst this process seems random, it would be straightforward to actually randomly assign countries, neglecting the need to check whether names starting with vowels are correlated with some omitted variable, which is possible! Thus, a better assignment mechanism would be a (pseudo) random binary generator for each country. 
+
