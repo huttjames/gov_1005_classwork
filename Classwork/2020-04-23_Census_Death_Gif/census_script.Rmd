@@ -1,0 +1,130 @@
+---
+title: "Working with Big Data"
+author: "David Kane"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(lubridate)
+library(gganimate)
+library(tidyverse)
+library(skimr)
+```
+
+This month, the [CenSoc Project](https://censoc.berkeley.edu/) at Berkeley released the first version of their individual-level data sets with information on almost everyone in the 1940 U.S. Census. The data is available to us. Today's project is to work with Big Data for real. (If you want to spend more time on machine learning, go through the examples in chapter 14.)
+
+Fill out [this form](https://censoc-download.demog.berkeley.edu/) to access the data. You should receive an e-mail with a link to a page [like this one](https://censoc-download.demog.berkeley.edu/Data/Qm958Kq901/). (Do not use that page.) Download just the censoc_dmf_v1.zip file. Unzip it and place the `censoc_dmf_v1.csv` in your project. (Do not check this in to Github. It is too big.)
+
+
+## Scene 1
+
+* Read in the data into a tibble called `raw`. Make sure to use the `col_types` argument so that you code does not produce aesthetically offensive messages. 
+
+```{r read_data, cache=TRUE}
+
+raw <- read_csv("censoc_dmf_v1.csv", col_types=cols()) %>%
+  filter(bmonth != 0) 
+
+```
+
+
+* Be professional. Give your R code chunks names. Use `cache=TRUE` as a code chunk option for any chunk that takes a long time to run.
+
+* Once you have the data, take a look. There is at least one bad row. Find it and change your code so that it is not read in to `raw`.
+
+* Consider the oldest man in the dataset. (All the observation are male.) What year was he born in?
+
+* Calculate the average age at death by birth year. What two years have the highest average? Why? Without looking can you guess which years have the lowest average?
+
+* Which four months have the highest number of deaths? Why? What does that suggest about the influence of global warming on mortality?
+
+```{r s1, echo=FALSE}
+
+raw %>%
+  arrange(desc(death_age)) %>%
+  head(1)
+
+raw %>%
+  group_by(byear) %>% 
+  summarise(avg_death_age = mean(death_age), 
+            count = n()) %>%
+  arrange(avg_death_age)
+
+raw %>%
+  group_by(dmonth) %>% 
+  count(n = n()) %>% 
+  arrange(desc(n))
+
+```
+
+
+
+## Scene 2
+
+This data set is not easy to work with because it has no dates. It just has months and years. Create two new variables: `birth_date` and `death_date`, defined as the first day of the month, even though we don't have exact day information. Drop all the other variables except `death_age`. A smaller data set will be easier to work with. Call this new tibble `x`.
+
+Create a plot like the one on Piazza which shows a histogram of ages at death.
+
+```{r s2, echo=FALSE, cache=TRUE}
+
+x <- raw %>% 
+  mutate(birth_date = ymd(paste(byear, bmonth,"01", sep = "-")),
+         death_date = ymd(paste(dyear, dmonth,"01", sep = "-"))) %>%
+  select(birth_date, death_date, death_age)
+
+small_x <- x %>%
+  sample_n(100000)
+
+ggplot(data = x, aes(x = death_age)) + geom_bar() +
+  labs(title = "Number of deaths at each age",
+       subtitle = "Ages at death is normalesque",
+       x = "Age at Death",
+       y = "Total Number")
+
+ggsave("histogram_of_ages", device = "png")
+ggsave("histogram_of_ages.jpeg", device = "jpeg")
+  
+
+```
+
+
+
+## Scene 3
+
+Make a [cool animation](https://davidkane9.github.io/PPBDS/C-animation.html) with this data. First step is to build an interesting static graphic, using all your favorite **ggplot** tools. Then animate it in an interesting way. See Piazza for my (broken!) example. Do something similar, or better!
+
+
+```{r s3, echo=FALSE}
+
+x <- x %>%
+  group_by(death_date) %>% 
+  summarise(n = n()) %>%
+  mutate(season_cold = map_lgl(death_date, ~ month(ymd(.)) %in% c(10:12, 1:3)))
+
+
+anim_death <- x %>%
+  ggplot(aes(x = death_date, y = n, color = season_cold)) + 
+  geom_point() + 
+  geom_line() + 
+  transition_reveal(death_date) +
+  labs(title = "Total Deaths over Time",
+       subtitle = "More deaths duing cold weather",
+       x = "Year of Death",
+       y = "Total Number") + 
+  theme_classic()
+
+anim_death
+
+anim_save("death_by_season.gif", anim_death)
+
+```
+
+
+
+## Challenge Problem
+
+Use this data and the [d3rain package](https://github.com/daranzolin/d3rain) to create a cool animation with this data. Perhaps birth years across the top. The rain falls down to either death years or to ages at death. Or something else. Impress us! Put your animation on Rpubs and leave a link on Piazza.
+
+

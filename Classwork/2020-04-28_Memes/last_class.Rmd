@@ -1,0 +1,38 @@
+---
+title: "Last_class"
+author: "James Hutt"
+date: "28/04/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(lubridate)
+library(memer)
+```
+
+```{r random, echo=FALSE}
+
+seq(as.Date(today()+years(10)), as.Date(today()+years(20)), by="days") %>% sample(1)
+
+
+y <- tibble(meme = meme_list(), 
+            image = map(meme, ~meme_get(.)))
+
+y
+
+meme_get("HotlineDrake") %>% 
+  meme_text_drake("Frequentist", "Bayesian")
+
+meme_get("CondescendingWonka") %>% 
+  meme_text_bottom("Another long hard \nday being the rope")
+
+
+
+
+
+
+```
+
