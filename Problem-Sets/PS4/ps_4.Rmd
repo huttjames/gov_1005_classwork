@@ -1,0 +1,393 @@
+---
+title: "ps_4"
+author: "James Hutt"
+date: "02/03/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidycensus)
+library(scales)
+library(gt)
+library(tidyverse)
+
+census_api_key("f58b01c33eb9e4fe7ba4513f83a41a3ae14a957c")
+
+# Warning message suppressed because it is just helpful advice on how to
+# permanently install the API key. Whilst I have done this on my own machine, I
+# don't necessarily want to do this on other peoples machines when they run my
+# code.
+
+options(scipen=999)
+
+# Added this option on the advice of the Piazza post as I was also having the
+# scientific notation issue
+
+```
+```{r load_data, include=FALSE}
+
+income <- get_acs(geography = "county", 
+              variables = c(medincome = "B19013_001"), 
+              year = 2018)
+
+# Warning is just informational so is suppressed
+
+```
+
+```{r function_defs, echo=FALSE}
+
+# ML1
+
+# This function should take a numeric vector (like our column, estimate) and 
+# calculate the standard deviation of the variable, then adds 1.
+
+sd_plus_one <- function(var, na.rm = TRUE){
+  x <- sd(var, na.rm = na.rm) + 1
+  return(x)
+}
+
+# Changes made: Moving the bracket to after na.rm from after the 1. This gives
+# the SD and then adds 1 to it, as detailed in the comments. Adding a bracked to
+# close the return function.
+
+
+# ML2
+
+# This function should take a county and state pair and extracts just the state
+# name. We can do this easily because the state name is always after a comma and
+# space.
+
+ get_state <- function(countystate){
+  countystate %>%
+  str_split_fixed(.,", ", 2) %>% 
+  pluck(2) %>% 
+  return()
+ }
+ 
+# Change: Adding the pipe operator after the countystate variable name so it
+# flowed into the str_split_fixed fn
+ 
+# ML3
+
+# This function should take the geoid for a given county, grabs the median
+# income for the corresponding county, and then add the margin of error to the
+# value.
+
+upper_bound <- function(geoid){
+ income %>% 
+ filter(GEOID == geoid) %>% 
+ mutate(estimate + moe) %>% 
+ pull()
+}
+
+# Changes: Amending the name of the argument in the function definition to geoid
+# to match the function body. Changing the Madlib answer from upper_bound(geoid
+# = "01005") to upper_bound(geoid = "01055") which is the correct geoid for
+# Etowah County, Alabama.
+
+
+```
+
+
+```{r madlib_solutions, echo=FALSE}
+
+x1 <- sd_plus_one(var = income$estimate) %>%
+  round(digits = 0)
+
+# Rounding the SD to 0 decimal places which is the precision of the original
+# income data
+
+x2 <- get_state("Treasure County, Montana")
+
+x3 <- upper_bound(geoid = "01055")
+
+```
+## Q1: Mad Libs
+
+ML 1) The standard deviation of median income, plus one, is `r x1`.
+
+ML 2) Treasure County, Montana is located in the state of `r x2`.
+
+ML 3) The upper bound for median income in Etowah County,
+Alabama (geoid = “01055”) is `r x3`.
+
+
+<br/><br/>
+
+## Q2: Mapping
+
+```{r q2_data, include=FALSE}
+
+income_california <- get_acs(geography = "county",
+                  variables = c(medincome = "B19013_001"), 
+                  year = 2018,
+                  state = "CA",
+                  geometry = TRUE) 
+
+# Warning message is just for info that the data has been downloaded so this is
+# suppressed in the final output
+
+# Rather than filtering the initial data it is easier just to get the data
+# specifically for CA as a new object because the state is tied up in the NAME
+# variable
+
+```
+```{r q2, echo=FALSE}
+income_california %>%
+  ggplot(aes(fill = estimate)) +
+  geom_sf() +
+  scale_fill_viridis_c(direction = -1, 
+                       option = "plasma", 
+                       breaks = c(40000, 60000, 80000, 100000),
+                       labels = c("40,000", "60,000", "80,000", "100,000"),
+                       name = "Median Income") +
+  labs(title = "Median Income by County in California",
+       caption = "Source: American Community Survey 2018") +
+  theme_void()
+
+# Fill is estimate but the colour (outline) of the shapes isnt changed so that
+# county borders are easily visible. geom_sf produces the map. The scale colour
+# was chosen to match the example. Breaks are specified so that labels for the
+# breaks may also be specified. This allows the formatting to be overwritten by
+# the addition of commas in the numbers which are actually Chr when displayed.
+# The legend and title axes are the same as in the example.
+
+```
+
+<br/><br/>
+
+## Q3: Publishing to Rpubs
+
+URL: https://rpubs.com/huttjames/580742
+
+<br/><br/>
+
+## Q4: Understanding Tufte Reading
+
+I suspect Tufte would not have been a fan of this Powerpoint – if there are any that he would be a fan of! This one falls foul on a few of the problems he identifies.
+1)	Numeric content of visuals. 
+The bar chart on slide 2 actually presents only 13 numbers, though takes up the whole of the slide. Even with such low information density the state names are hard to read, and the eye is only really caught by California and United States which are highlighted. This is also just a snapshot for one year in question. The data could better be presented as a data table, printed, with all 50 states and the changes over time, rather than for one year. Slide 3 actually has 0 numbers! 
+2)	Logos
+The LAO logo is on every slide. They should not be the most important part of the presentation. The information is. Or the audience. Not the presenter. 
+3)	Bullet structure
+Bullets regularly remove subtlety and links in information. Particularly egregious is “Issues” on p16 which lumps all the possible objections under one heading, as if they were of subordinate importance. Similarly, the criteria on p5 are all presented equally, removing any suggestion that the factors may be of differing importance, or competing with each other. 
+
+<br/><br/>
+
+## Q5: Writing a Function 
+```{r function_def, include=FALSE}
+get_dice <- function(n = 1){
+  sample(letters, n, replace = TRUE) %>%
+    min()
+}
+
+# Set default to n=1 so that it works without any input. Replace = True because
+# if rolling a dice it is possible to get the same answer multiple times
+
+x5a <- get_dice(3)
+```
+5A: `r x5a`
+<br/><br/>
+
+5C: 
+
+```{r function_def_2, include=FALSE}
+
+roll_alpha_dice <- function(n = 1){
+  map_chr(1:n, ~ get_dice(3))
+}
+
+# Get_dice still uses the argument 3 as each of them is rolling 3 times, ie for
+# 3 letters. The n in this function definition refers to the number of players
+# taking part, that is the number of results that will be returned in the list
+# output.
+
+```
+```{r q_5_c, echo=FALSE}
+
+# Part 5c
+
+outcomes_4 <- tibble(throws = map(rep(1,100), ~roll_alpha_dice(4)))
+
+# Stored in a table as a single list column as this would allow easier
+# manipulation of the data later on, including easy change to the number of
+# players
+
+outcomes_4 %>%
+  head(5) %>%
+  gt() %>%
+  tab_header(title = "Selected Throw for Each of the 4 Players",
+     subtitle = "Selected Throw is earliest alphabetically of 3 separate rolls") %>%
+  cols_label(throws = "Results")
+
+# The result of this choice is the 4 throws are shown as a list in a single
+# column, not as 4 separate columns
+
+outcomes_4_vowels <- outcomes_4 %>%
+  mutate(Alyssa_vowel = map_lgl(throws, 
+                                ~ ifelse(.[[1]] %in% c("a", "e", "i", "o", "u"),
+                                         TRUE,
+                                         FALSE))) 
+
+# The above code takes the original table, and adds a column whose value is
+# based on the first value in throws. The .[[1]] syntax returns the first value
+# in the list of letters in the current cell, which is then compared to the list
+# of vowels, returning the logicals as required. This is then saved as a new
+# tibble.
+
+x5c <- outcomes_4_vowels %>%
+  count(Alyssa_vowel) %>%
+  filter(Alyssa_vowel == TRUE) %>%
+  pull(n)
+
+# x5c is the variable to store the answer to this question. First we count the
+# number of trues and falses in the vowel column, then reduce the tibble down to
+# only the TRUE values and return the count to the variable
+
+x5c4 <- round(((x5c / 100) ^ 4) * 100, 2)
+
+
+
+```
+The selected value (representative of Alyssa's roll) was a vowel `r x5c` times. 
+
+5D: Given the percentage of Alyssa's rolls which were vowels was `r x5c`% I would expect all 4 to roll a vowel `r x5c4`% of the time, since the rolls are independent. 
+
+We can simulate this with the following tibble, of which only the first 50 rows are shown:
+
+```{r tibble_5d, echo=FALSE}
+
+outcomes_4_10000 <- tibble(throws = map(rep(1,10000), ~roll_alpha_dice(4)))
+
+# Replicating the tibble above only with 10000 rows this time 
+
+outcomes_4_10000_vowels <- outcomes_4_10000 %>%
+  mutate(all_vowel = map_lgl(throws, 
+                                ~ ifelse((.[[1]] %in% c("a", "e", "i", "o", "u") & 
+                                          .[[2]] %in% c("a", "e", "i", "o", "u") & 
+                                          .[[3]] %in% c("a", "e", "i", "o", "u") & 
+                                          .[[4]] %in% c("a", "e", "i", "o", "u")
+                                          ),
+                                         TRUE,
+                                         FALSE))) 
+
+# Replicating the check from above only this time with 4 conditions, related by
+# the and operator, so all must be true to get TRUE in the results column
+
+outcomes_4_10000_vowels %>%
+  head(50) %>%
+  gt() %>%
+  tab_header(title = "Selected Throw for Each of the 4 Players",
+     subtitle = "Selected Throw is earliest alphabetically of 3 separate rolls") %>%
+  cols_label(throws = "Results",
+             all_vowel = "All Vowels?")
+
+x5d <- outcomes_4_10000_vowels %>%
+  count(all_vowel) %>%
+  filter(all_vowel == TRUE) %>%
+  pull(n)
+
+# This code is analagous to the one above except checking the all_vowel col not
+# the Alyssa_vowel col
+
+```
+<br/><br/>
+
+Of the 10,000 games `r x5d` saw all 4 players roll vowels. This is `r x5d / 100`%. 
+
+<br/><br/>
+
+5E: The below chart shows the distribution of "first" letters from 1000 plays of the game by a single player. 
+
+```{r q5e, echo=FALSE}
+
+outcomes_1_1000 <- tibble(throws = map(rep(1,1000), ~roll_alpha_dice(1))) %>%
+  unnest(throws) %>%
+  mutate(throws = factor(throws, levels = letters)) %>%
+  group_by(throws, .drop = FALSE) %>%
+  summarise(count = n())
+
+# This produces a tibble where a single player rolls 3 dice and takes the first
+# letter alphabetically each time and records it. I have interpreted "first"
+# from the prompt to mean earliest alphabetically of the 3 dice, rather than the
+# result of the first roll. As this would appear to give a more interesting
+# result. The first roll of the sequence should produce all 26 letters randomly.
+
+# The unnest function is used to convert the list column to columns. Since each
+# list only contains the single letter the result is a tibble with only 1
+# column. Effectively the list column is converted to a regular column
+# containing the same data
+
+# The throws column is mutated to be a factor with levels specified as all
+# letters and then group by has the argument .drop = FALSE because this means
+# that all letters, even ones which are not represented in the table will be
+# shown in the frequency chart.
+
+outcomes_1_1000 %>%
+  ggplot(aes(throws, count)) + 
+  geom_col() + 
+  labs(title = "Distribution of Earliest Letters When Rolling 3 Alphabetic Dice",
+       caption = "1000 Independent Rolls of 3 Dice") + 
+  theme_classic() + 
+  scale_y_continuous(name = "Number of Rolls") + 
+  scale_x_discrete(name = "Letter")
+
+# Throws vs count as a column chart. Changes are all aethetic - labels and theme
+# styling
+
+```
+<br/><br/>
+
+5F: The below chart shows the distribution of "first" letters from 1000 plays of the game by a single player when they have 3 or 5 rolls respectively.
+
+```{r q5f, echo=FALSE}
+
+roll_alpha_dice_5 <- function(n = 1){
+  map_chr(1:n, ~ get_dice(5))
+}
+
+# Reimplementing a new version of the function with 5 dice. Chose to do this
+# because it was quicker to create a new function than to rewrite the function
+# with a variable parameter for number of dice
+
+outcomes_1_1000_5 <- tibble(throws = map(rep(1,1000), ~roll_alpha_dice_5(1))) %>%
+  unnest(throws) %>%
+  mutate(throws = factor(throws, levels = letters)) %>%
+  group_by(throws, .drop = FALSE) %>%
+  summarise(count = n())
+
+# Recreating the table from part e with the only change being that I use the
+# function with 5 dice
+
+# Next I will join the tibbles so that I can plot them on the same bar chart. To
+# do this I will need an extra column which specifies whether the result is from
+# the 3 or 5 roll version
+
+outcomes_1_1000 <- outcomes_1_1000 %>%
+  mutate(Rolls = 3)
+
+outcomes_1_1000_5 <- outcomes_1_1000_5 %>%
+  mutate(Rolls = 5)
+
+joint_table <- bind_rows(outcomes_1_1000, outcomes_1_1000_5) %>%
+  mutate(Rolls = factor(Rolls))
+
+# Now I can plot the bars, colouring by which version of the game. This will
+# allow us to easily compare side by side.
+
+ggplot(joint_table, aes(throws, count, fill = Rolls)) + 
+  geom_col(position = "dodge2") + 
+  labs(title = "Distribution of Earliest Letters When Rolling 3 or 5 Alphabetic Dice",
+       caption = "1000 Independent Rolls of 3 or 5 Dice") + 
+  theme_classic() + 
+  scale_y_continuous(name = "Number of Rolls") + 
+  scale_x_discrete(name = "Letter")
+
+```
+
+As we can see, the distribution when rolling 5 dice is shifted to the left. This makes sense as if we roll more dice, and can choose any of them, then the worst result we can do is the same as at the end of the third roll, however we might improve what we picked. Thus, in expectation, each result will be earlier in the alphabet and the distribution as a whole will be shifted downwards.
+
+<br/><br/> 
+
+PSet Pals: Taylor Greenberg Goldy 

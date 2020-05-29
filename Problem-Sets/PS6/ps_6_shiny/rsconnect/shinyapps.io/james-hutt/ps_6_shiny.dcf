@@ -1,0 +1,10 @@
+name: ps_6_shiny
+title:
+username:
+account: james-hutt
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 1973928
+bundleId: 2905075
+url: https://james-hutt.shinyapps.io/ps_6_shiny/
+when: 1584788076.76205

@@ -1,0 +1,253 @@
+---
+title: "ps_7"
+author: "James Hutt"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(skimr)
+library(broom)
+library(readr)
+library(gt)
+library(tidyverse)
+```
+
+```{r load_data, include=FALSE}
+
+# Set a file path in case it is changed later. include=FALSE to suppress the
+# column specification information
+
+file_path <- "raw-data/HSall_members.csv"
+
+# Use read_csv to read the data into a tibble. na=c("", "NA") is already the
+# default. From using glimpse I can see that all columns are loaded with
+# sensible data types automatically so there is no need to specify.
+
+hs_data <- read_csv(file_path)
+
+```
+
+## Question 1: Conduct exploratory data analysis
+1A) 
+
+```{r q1, echo=FALSE}
+
+# Filter down the data set as specified. I checked by adding a TRUE statement to
+# the case_when that nobody was left uncovered by one of the 3 codes.
+
+q1_data <- hs_data %>%
+  filter(chamber %in% c("Senate", "House")) %>%
+  filter(congress == 116) %>%
+  mutate(party = map_chr(party_code, ~ case_when(. == 100 ~ "Democrat", 
+                                               . == 200 ~ "Republican",
+                                               TRUE ~ "Other"))) %>%
+  filter(party %in% c("Democrat", "Republican")) %>%
+  mutate(age = map_dbl(born, ~ 2019 - .)) 
+
+# To calculate the percentile of values we need to pass the list of values to
+# ecdf which produces a function which returns the percentile of a value in a
+# distribution, which we call P. We can then call this function on each value in
+# turn.
+
+P = ecdf(q1_data$nominate_dim1)
+
+# Mutate the table to contain this value 
+
+q1_data <- q1_data %>%
+  mutate(nominate_percentile = 100 * map_dbl(nominate_dim1, ~ P(.)))
+
+# Skim the columns nominate_percentile and age 
+
+q1_data %>%
+  skim(nominate_percentile, age)
+
+
+```
+
+1B) 
+<br/>
+```{r q1b, echo=FALSE}
+
+# Plotting histograms of age coloured by party affiliation. position = "dodge2"
+# offsets the bars so we can see both parties separately. Scale colour manual
+# set so that colours can be coerced to match the traditional party affiliations
+
+ggplot(q1_data, aes(x = age, fill = party)) + 
+  geom_histogram(binwidth = 1, position = "dodge2") + 
+  theme_classic() + 
+  labs(title = "Distribution of Congressman Age in the 116th Congress",
+       subtitle = "Age in 2019", 
+       caption = "Data from https://voteview.com/data") + 
+  scale_y_continuous(name = "Number of Congressmen") + 
+  scale_x_continuous(name = "Age") + 
+  scale_fill_manual(name = "Party", values = c("Blue", "Red"))
+
+# As expected the histogram has almost the same number in each bins. This is
+# indicated in the sub title. No jitter necessary given the overlap.
+
+ggplot(q1_data, aes(x = nominate_percentile, fill = party)) + 
+  geom_histogram(bins = 20, boundary = 100) + 
+  theme_classic() + 
+  labs(title = "Party Affiliation along Left-Right Percentile Distribution",
+       subtitle = "No Jitter as there is almost no overlap to speak of! \nAs expected there are almost the same number of congressmen in \neach bin with the variation coming from boundary effects", 
+       caption = "Data from https://voteview.com/data") + 
+  scale_y_continuous(name = "Number of Congressmen in Distribution Bucket") + 
+  scale_x_continuous(name = "Left-Right Percentile") + 
+  scale_fill_manual(name = "Party", values = c("Blue", "Red"))
+
+```
+```{r q1c, echo=FALSE}
+       
+
+# Correlation stored in a variable for later
+
+ml1c <- cor(q1_data$age, q1_data$nominate_percentile)
+
+# Plot is commented out but was produced to check if the numerical value looked
+# correct
+
+# ggplot(q1_data, aes(age, nominate_percentile)) + geom_line()+ 
+#   geom_smooth(method = "lm", se = FALSE)
+
+```
+
+1C) The corrlation coefficient between age and nominate_percentile is `r ml1c`. A negative coefficient suggests that the older a member of congress the lower their percentile in the distribution, that is the more liberal they are, whereas a positive coefficient would suggest older members are higher in the percentile range, that is more conservative. 
+<br/>
+
+1D)
+<br/>
+
+```{r q1d, echo=FALSE}
+
+# Method is glm as specified. SE is false as no error zones are shown on the
+# plot. Color mappins are not specified in ggplot as this causes them to be
+# inherited by the smoothed lines, instead the color mapping is specified at the
+# point level and at the level of the grouped lines. This means there is still
+# ungrouped data feeding down which can be used for the whole sample regression
+# line.
+
+ggplot(q1_data, aes(age, nominate_percentile)) + 
+  geom_point(aes(color = party)) + 
+  geom_smooth(method = "glm", se = FALSE, color = "black") +
+  geom_smooth(method = "glm", se = FALSE, aes(color = party, group = party)) + 
+  theme_classic() + 
+  labs(title = "Relationship Between Age and DW Nominate Percentile",
+       subtitle = "Higher scores represent more conservative positions") + 
+  scale_y_continuous(name = "Percentile Rank (DW Nominate)") + 
+  scale_x_continuous(name = "Age")  + 
+  scale_color_manual(name = "Party", values = c("Blue", "Red"))
+
+```
+
+## Question 2: Run a single regression
+
+```{r q2, echo=FALSE}
+
+# Filter for only democrats 
+
+q2_data <- q1_data %>%
+  filter(party == "Democrat")
+
+# Run a linear regression 
+
+age_model <- lm(nominate_percentile ~ age, data = q2_data)
+
+# Tidy up the data
+
+age_model %>%
+  tidy(conf.int = TRUE) %>%
+  select(term, estimate, conf.low, conf.high) %>%
+  gt() %>%
+  tab_header(title = "Effect of Age on DW Nominate Percentile",
+     subtitle = "Higher percentile suggets more conservative") %>%
+  cols_label(term = "Variable",
+             estimate = "Estimate",
+             conf.low = "Lower bound",
+             conf.high = "Upper bound")
+
+```
+<br/>
+2B) The estimated ATE is -0.33. For each year older that a democratic congressman is we expect them to come 0.33 percentage points lower in the distribution of congressmen by DW Nominate. All else equal, if any given congressman were 1y older we would expect 0.33% of their colleagues to switch from being less conservative than them, to more. The correlation is not necessarily causal as the correlation may be a cohort effect. For example, people born in the 50s may consistently be more liberal than people born in the 60s. If this effect is constant over time then age will always be correlated with R-L scale, but the positions of individuals will not change with age as they are not in any way dependent on their age. There is correlation but not causation. 
+Confidence intervals give a measure of uncertainty in our estimate, so we may assess how useful it is. We have only taken one sample, the 116th congress. If we had taken a different sample, say the 115th congress, we may have observed different sample statistics, even though the population level effect, where the population is all democratic congressmen, is unchanged. What we are observing is sampling variation. 
+
+<br/>
+2C) If treatment is defined as 1, then a positive coefficient of X would imply an associated increase, on average, of X on the percentile measure. I.e, being in the military moves you, on average, X% points towards the conservative end of the percentile distribution. Since military is 1 or 0 this coefficient is also the average treatment effect which predicts the difference in potential outcomes for the same congressman who either was or was not in the military. This analysis can be considered causal as the randomization should ensure all confounding variables are averaged over treatment and control groups. 
+
+## Question 3: Generalize to many regressions
+
+```{r q3, echo=FALSE}
+
+# Prepare the dataset. Filter as required. 
+
+q3_data <- hs_data %>%
+  filter(chamber %in% c("Senate", "House")) %>%
+  filter(party_code == 100) %>%
+  mutate(party = "Democrat") %>%
+  select(congress, bioname, born, died, nominate_dim1, party)
+
+# Add congress_start_year 
+
+q3_data <- q3_data %>%
+  mutate(congress_start_year = map_dbl(congress, ~ 2 * (. - 1) + 1789))
+
+# Calculate age column
+
+q3_data <- q3_data %>%
+  mutate(age = congress_start_year - born)
+
+# As before calculate the ECDF from this table
+
+P = ecdf(q3_data$nominate_dim1)
+
+# Mutate the table to contain this value 
+
+q3_data <- q3_data %>%
+  mutate(nominate_percentile = 100 * map_dbl(nominate_dim1, ~ P(.)))
+
+# Pipe your data into group_by(congress), and then nest(), to create a tibble of
+# tibbles. This tibble will have two columns, “congress” and “data”
+
+q3_data_nest <- q3_data %>%
+  group_by(congress) %>%
+  nest()
+
+# Create a column named mod, using map() to run lm on the data in each row of
+# your tibble. This will give you the regression results, but in an untidy
+# format
+
+q3_data_nest <- q3_data_nest %>%
+  mutate(mod = map(data, ~ lm(nominate_percentile ~ age, data = .)))
+
+# Create a column called reg results, using map() again to run tidy on the
+# results. 
+
+q3_data_nest <- q3_data_nest %>%
+  mutate(reg_results = map(mod, ~ tidy(.)))
+
+# Use map_dbl() to pull the estimate for age from each congress, as well as the
+# standard error, which you can use to create an upper and lower column for the
+# 95% confidence interval
+
+q3_data_nest <- q3_data_nest %>%
+  mutate(coef = map_dbl(reg_results, 
+                             ~ filter(., term == "age") %>% pull(estimate)), 
+         se = map_dbl(reg_results, 
+                             ~ filter(., term == "age") %>% pull(std.error)), 
+         upper = coef + 1.96 * se, 
+         lower = coef - 1.96 * se 
+  )
+
+# Plot the chart using this tibble
+
+ggplot(q3_data_nest, aes(congress, coef)) + 
+  geom_point(color = "blue") + 
+  geom_errorbar(aes(x = congress, ymin = lower, ymax = upper), color = "blue") + 
+  theme_classic() + 
+  labs(title = "Average Treatment Effect of Age on Conservatism \nAmong Democrats over Time",
+       subtitle = "Scores use DW Nominate Dimension 1 \n95% Confidence Interval") + 
+  scale_y_continuous(name = "Estimate") + 
+  scale_x_continuous(name = "Congress")
+
+```
+

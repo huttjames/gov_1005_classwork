@@ -1,0 +1,16 @@
+---
+title: "Problem Set 1"
+author: "James Hutt"
+date: "06/02/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is my first problem set
+
+

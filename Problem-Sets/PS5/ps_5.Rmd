@@ -1,0 +1,390 @@
+---
+title: "ps_5"
+author: "James Hutt"
+date: "16/03/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(haven)
+library(labelled)
+library(gt)
+library(infer)
+library(knitr)
+library(tidyverse)
+```
+```{r read_data, echo=FALSE}
+
+# Read data using the read_dta package from stata. No lines to skip so all args
+# can be left as default
+
+x_ns <- read_dta("ns20191226/ns20191226.dta")
+
+```
+```{r madlib_answer, echo=FALSE}
+
+# ML1. Remove from the count only respondents who are coded as 888 (not asked).
+# If we just filter for !=888 then this also removes NA values by default. But
+# NA implies asked but not answered, so we must add this back in
+
+x1 <- x_ns %>%
+  filter(gun_registry != 888 | is.na(gun_registry)) %>%
+  count()
+
+# ML2. From the codebook the only question which was not asked to some people was gun_registry so we can filter our dataset as above to return the people who were asked all 4 questions. This is the denominator. The numerator is the proportion of these people who were gun owners. 
+
+x2 <- round(
+  x_ns %>%
+  filter(gun_registry != 888 | is.na(gun_registry)) %>%
+  filter(household_gun_owner == 1) %>%
+  count()/ 
+  x_ns %>%
+  filter(gun_registry != 888 | is.na(gun_registry)) %>%
+  count(), 
+  4) * 100
+
+#ML3. Households without guns responded 3. Households with guns responded 1 or
+#2. We want to filter for only those answers 1:4, which are responses rather
+#than not sure or not asked.
+
+x3a <- x_ns %>%
+  filter(household_gun_owner == 3) %>% 
+  filter(statements_gun_rights %in% c(1:4)) %>%
+  pull(statements_gun_rights) %>%
+  mean() %>%
+  round(2)
+
+x3b <- x_ns %>%
+  filter(household_gun_owner %in% c(1:2)) %>% 
+  filter(statements_gun_rights %in% c(1:4)) %>%
+  pull(statements_gun_rights) %>%
+  mean() %>%
+  round(2)
+  
+
+# As above using filter %in% we can filter only for respondents aged 18-29
+# inclusive or older than 30. We can then group by religion, order them, and
+# pull the most popular value. This value is saved in a temporary variable which
+# is used to look up the value using the val_label function from the list of
+# religions and their associated labels
+
+religions <- x_ns %>%
+  pull(religion)
+
+filter_1829 <- x_ns %>%
+  filter(age %in% c(18:29)) %>%
+  group_by(religion) %>%
+  summarise(n = n()) %>%
+  arrange(-n) %>%
+  slice(1) %>%
+  pull(religion) %>% 
+  as.factor()
+
+x4a <- val_label(religions, filter_1829)
+
+# We do the same for over 30s, only changing the filter
+
+filter_30plus <- x_ns %>%
+  filter(age > 29) %>%
+  group_by(religion) %>%
+  summarise(n = n()) %>%
+  arrange(-n) %>%
+  slice(1) %>%
+  pull(religion) %>% 
+  as.factor()
+
+x4b <- val_label(religions, filter_30plus)
+
+# ML5. From the codebook we can see that nothing in particular is coded as 12.
+# We are looking for the position of 12 in the vector of relgions, ordered by
+# size in each age group. We do this by creating the same ordered vector as in
+# ML4 but then not taking the top row only. Then the which function returns the
+# index of a specified value in a vector
+
+filter_1829_all <- x_ns %>%
+  filter(age %in% c(18:29)) %>%
+  group_by(religion) %>%
+  summarise(n = n()) %>%
+  arrange(-n) %>%
+  pull(religion) %>% 
+  as.factor()
+
+x5a <- which(filter_1829_all == 12)
+
+filter_30plus_all <- x_ns %>%
+  filter(age > 29) %>%
+  group_by(religion) %>%
+  summarise(n = n()) %>%
+  arrange(-n) %>%
+  pull(religion) %>% 
+  as.factor()
+
+x5b <- which(filter_30plus_all == 12)
+
+# Firstly filter for all people who responded 12 to the question of religion.
+# Then reduce this down only to people who gave an answer in the range 1:4 for
+# statements_gun_rights. In an analogous process to above, pull out the value
+# which is top ranked and then us val_label to read out the value.
+
+x6_temp <- x_ns %>%
+  filter(religion == 12) %>% 
+  filter(statements_gun_rights %in% c(1:4)) %>%
+  select(statements_gun_rights) %>% 
+  group_by(statements_gun_rights) %>%
+  summarise(n = n()) %>% 
+  arrange(-n) %>% 
+  slice(1) %>% 
+  pull(statements_gun_rights) %>%
+  as.factor()
+
+x6 <- val_label(x_ns$statements_gun_rights, x6_temp)
+
+```
+```{r q2, echo=FALSE}
+
+# Define the function using sample. The If condition breaks if a nonnumeric
+# value is passed, otherwise a list is returned.
+
+draw_cards <- function(n = 1){
+  if(!is.numeric(n)){ 
+     break
+  }
+  sample(c("diamonds", "hearts", "spades", "clubs"), n, replace = TRUE)
+}
+
+# Part b. Map function, repeated 10 ties, which calls draw_cards(2)
+
+draws_10 <- tibble(
+  cards = map(1:10, ~ draw_cards(2))
+)
+
+# Part c. The two columns reference the data in the list column cards. The
+# ifelse function returns TRUE or FALSE checking card 1 and 2 in each list in
+# turn
+
+draws_10 <- draws_10 %>%
+  mutate(red_1 = map_lgl(cards,
+                         ~ ifelse(.[[1]] %in% c("hearts", "diamonds"),
+                                         TRUE,
+                                         FALSE))) %>%
+  mutate(red_2 = map_lgl(cards,
+                         ~ ifelse(.[[2]] %in% c("hearts", "diamonds"),
+                                         TRUE,
+                                         FALSE)))
+
+# Part d. Using case when to allocated the 3 cases. The first two specified
+# cases have both rows the same, meaning that the second condition, joined by
+# the and operator, specifies whether both red or both black. The final
+# condition is therefore the only other case, which is necessarily true, the
+# cards are mixed
+
+draws_10 <- draws_10 %>%
+  mutate(both_red = case_when(
+    red_1 == red_2 & red_1 == TRUE ~ "Both Red",
+    red_1 == red_2 & red_1 == FALSE ~ "Both Black",
+    TRUE ~ "Mixed"
+  ))
+
+```
+
+
+
+## Mad Libs
+
+ML 1) Not all respondents were asked every question. `r x1` respondents were asked the question about whether the USA should create a gun registry.
+
+ML 2) Of the respondents that got asked all four gun policy questions, `r x2` percent are gun owners. (For the purposes of this question, you can assume that the people who answered “not sure” are not gun owners). Round to 2 digits after the decimal point.
+
+ML 3) The average “agreement” score (from 1-4) on the statement_gun_rights variable is `r x3a` for those respondents who live in households without guns, while the average “agreement” score in households with guns is `r sprintf("%.2f", x3b)`. (Calculate the average dropping respondents who weren’t asked, didn’t know, or skipped either question, and round to two digits after the decimal point).
+
+ML 4) Another set of questions asks about religion. The first ranked category of religion for the age group of people 18-30 (don’t include 30) is “`r x4a`” . The first-ranked religion category for people 30 and older is “`r x4b`”. Hint: you’re going to need the “labels” that are imported from the dta using haven; we suggest using as_factor to assign the right labels to the religion variable.
+
+ML 5) Lots of people say that the younger generation has the highest percent of “nones;” people who answer “nothing in particular”, when you ask them their religion. In the 18-30 age group, “nothing in particular” is ranked `r x5a`, while in the 30 and above group, “nothing in particular” is ranked `r x5b`.
+
+ML 6) Consider again the nones (all people who responded “nothing in particular”) when asked about their religion. In this group, the most popular position is to `r x6` (strongly disagree, disagree, agree, or strongly agree?) that it is more important for the government to control who owns guns than it is for the government to protect the right to own guns (use the variable “statement_gun_rights” and only include respondents who were asked both of these questions).
+
+<br/>
+
+## Q2: Simulations with List Columns
+
+#### Part D
+```{r print_2d, echo=FALSE}
+
+# Calls the table from earlier and prints it as a gt using the standard
+# formatting and headers provided
+
+draws_10 %>% 
+  gt() %>% 
+  tab_header(title = "Drawing Two Cards",
+     subtitle = "Card colours") %>%
+  cols_label(cards = "Draw",
+             red_1 = "First card red?",
+             red_2 = "Second card red?",
+             both_red = "Colour Outcome")
+
+# Part 2E. Replicate the process of draws_10 but with a sample of 1000 turns.
+# Then group by and count the mixed pairs.
+
+draws_1000 <- tibble(cards = map(1:1000, ~ draw_cards(2)))%>%
+  mutate(red_1 = map_lgl(cards,
+                         ~ ifelse(.[[1]] %in% c("hearts", "diamonds"),
+                                         TRUE,
+                                         FALSE))) %>%
+  mutate(red_2 = map_lgl(cards,
+                         ~ ifelse(.[[2]] %in% c("hearts", "diamonds"),
+                                         TRUE,
+                                         FALSE))) %>%
+  mutate(both_red = case_when(red_1 == red_2 & red_1 == TRUE ~ "Both Red",
+                              red_1 == red_2 & red_1 == FALSE ~ "Both Black",
+                              TRUE ~ "Mixed"))
+
+x_2e <- draws_1000 %>%
+  group_by(both_red) %>%
+  summarise(total = n()) %>%
+  filter(both_red == "Mixed") %>%
+  pull(total) * (100 / 1000)
+
+```
+
+#### Part E
+In my simulation of drawing 2 cards 1000 times `r x_2e`% of the pairs have mixed colours. 
+
+<br/>
+
+## Q3: Modeling a Study Population
+```{r q3, echo=FALSE}
+
+# Using rep function in a manner analgous to the way we created an urn in class
+
+university <- tibble(id = 1:6120,
+                     grade = c(rep("freshman", 1800), 
+                               rep("sophomore", 1450),
+                               rep("junior", 1570), 
+                               rep("senior", 1300)))
+
+# Plotting the proportions requires first grouping, calculating the proportions
+# and then plotting. In the example plot the years are plotted alphabetically. I
+# have chosen to copy this. Another method which would have been possible would
+# be to reorder the years into their actual academic order.
+
+university %>% 
+  group_by(grade) %>%
+  summarise(total = n()) %>%
+  mutate(percentage = 100 * total / 6120) %>%
+  ggplot(aes(x = grade, y = percentage)) + 
+  geom_col() + 
+  theme_classic() + 
+  labs(title = "University Composition by Grade",
+       subtitle = "Entire Study Population") + 
+  scale_y_continuous(name = "Percentage", 
+                     breaks = c(0, 10, 20, 30), 
+                     labels = c("0%", "10%", "20%", "30%")) + 
+  scale_x_discrete(name = "Grade") + 
+  geom_text(aes(label = round(percentage,1), vjust = -0.5))
+
+```
+<br/>
+
+## Q4: Sampling
+```{r q4, echo=FALSE}
+
+# Set Seed
+
+set.seed(02139)
+
+# Create a tibble containing 5000 samples of 25 students each. Then group by
+# replicate and grade so that when we filter only the freshmen we are left with
+# a total of freshmen for each grade. We create the percentage summary statistic
+# by totalling it and then dividing by 25 as this was the size of the sample.
+
+university_samples <- university %>%
+  rep_sample_n(25, replace = FALSE, reps = 5000) %>%
+  group_by(replicate, grade) %>%
+  filter(grade == "freshman") %>%
+  summarise(percent_freshman = 100 * n() / 25) 
+
+# Plot the chart as a histogram. Binwidth as 4% because this is the minimum
+# increment. Setting a boundary at 24% as this means the bins are aligned with 1
+# student increments.
+
+ggplot(university_samples, aes(percent_freshman)) + 
+  geom_histogram(binwidth = 4, boundary = 24) +
+  labs(title = "Percentage of Freshmen in Random Samples of 25 Students",
+       subtitle = "5000 samples taken from the total population",
+       x = "Percentage of Freshmen out of 25 Students",
+       y = "Count") + 
+  theme_classic()
+
+```
+<br/>
+
+## Q5: Sampling and Sample Size
+
+```{r q5, echo=FALSE}
+
+# Create a list of sizes then make this a named list
+
+sizes = c(25, 50, 100, 500)
+sizes <- set_names(sizes, nm = sizes)
+
+# Reset the seed
+
+set.seed(02139)
+
+# Call rep_sample_n on each size in the list and use map_df to bind them into a
+# dataframe
+
+university_samples_many <- map_df(sizes,
+                                  ~ rep_sample_n(university, 
+                                                 size = ., 
+                                                 reps = 5000),
+                                  .id = "sizes")
+
+# Count the number of freshmen in each sample
+
+university_samples_many <- university_samples_many %>% 
+  group_by(replicate, sizes, grade) %>%
+  summarize(count = n()) %>%
+  mutate(pct_grade = count / sum(count)) %>%
+  filter(grade == "freshman")
+
+# Plot as a density plot. Alpha set to 0.25 to see areas clearly where the plots
+# overlap.
+
+university_samples_many %>%
+  ggplot(aes(pct_grade, fill = sizes)) + 
+  geom_density(alpha = 0.25) + 
+  labs(title = "Distribution of Percentage Freshmen",
+       subtitle = "Average sampled percentage get closer to the true percentage as sample size increases", 
+       x = "Count", 
+       y = "Proportion of Freshmen", 
+       fill = "Size") + 
+  scale_fill_discrete(labels = c(25, 50, 100, 500)) + 
+  theme_classic()
+```
+<br/>
+
+## Q6: Publish Your Plot
+
+URL: https://rpubs.com/huttjames/585816
+
+Included graphic: 
+<br/>
+`r include_graphics("graphics/dist_by_sample_size.png")`
+
+<br/>
+
+## Q7: Reprex
+
+URL: https://github.com/GOV-1005-Spring-2020/problem-set-5-huttjames/issues/1
+
+<br/>
+
+## Q8: Demonstrating Understanding of Sampling
+
+I would choose to sample 500 people from each of the 10 states rather than 1000 people in just the 5 cities. 
+Since the vote is decided by a popular vote of the whole population, then the entire population of the country is really my study population. Its impossible to do a census (assuming that there are more than 5000 people in my country) so my challenge becomes one of finding a representative sample from which I can generalize. The population of cities is not random characteristics – they tend to consistently be younger and more liberal - and consequently cities have unrepresentative political. Any poll which covered just the cities would be unrepresentative and the point estimates generated would not necessarily be good guesses of the population parameters. They would be biased estimates. 
+By taking smaller samples I will, necessarily, increase sampling variation and so the confidence intervals for each individual state will be wider. Nonetheless, I can combine the 10 polls together to create a national poll. In doing this I may have to weight the polls so that the relative population differences between states are accounted for. But if there are only 10 states and I sample in the correct weight from each of them, then my estimate should be an unbiased estimate of the whole population, which, ultimately is what I care about. 
+I may further be interested in local variation in views, because this would allow me to target my last ditch campaign efforts, but with just a week to go until elections and targeted campaigning is likely to be limited in scope. Given the electoral system is truly 1-person-1vote, there is no advantage to winning marginal states, so I would like a poll which covers every voter rather than a poll which focuses on key local areas. 

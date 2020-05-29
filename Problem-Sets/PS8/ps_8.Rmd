@@ -1,0 +1,306 @@
+---
+title: "PS_8"
+author: "James Hutt"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(fivethirtyeight)
+library(skimr)
+library(gt)
+library(tidyr)
+library(broom)
+library(patchwork)
+library(tidyverse)
+```
+```{r read_data, include=FALSE}
+
+# Error messages suppressed because they refer to a character type in one of the
+# tweets which is not a significant issue
+
+# Assign the data to an object called poll
+
+poll <- trump_approval_poll
+
+# For an Rdata file only the function load is needed not read.csv
+
+load(file = "raw-data/tweetsnew.Rdata")
+
+```
+
+## Question 1: Conduct exploratory data analysis
+
+1A) <br/>
+
+```{r q1a, echo=FALSE}
+
+# Summarise as tweets per week
+
+tweets_summary <- tweets %>%
+  group_by(week) %>%
+  summarise(total_tweets = n())
+
+# Mutate poll to add a week variable 
+
+poll$week <- ceiling(as.numeric(difftime(poll$end_date, "2017-01-01", units = "days"))/7)
+
+# Left join poll to tweets. Then mutate to convert NA values to 0. 
+
+joined_data <- left_join(poll, tweets_summary, by = "week") %>%
+  mutate(total_tweets = map_dbl(total_tweets, ~ case_when(is.na(.) ~ 0,
+                                                          TRUE ~ as.numeric(.))))
+
+skim(joined_data, total_tweets, approve)
+
+```
+
+1B) <br/>
+
+```{r q1b, echo=FALSE}
+
+# Mutate grade to make NA factors explicit and then pipe into ggplot
+
+joined_data %>%
+  mutate(grade = fct_explicit_na(grade, na_level = "(Missing)")) %>%
+  ggplot(aes(total_tweets, approve, color = grade)) + 
+  geom_point() + 
+  theme_classic() + 
+  labs(title = "Trump Approval Ratings and Number of Tweets",
+       subtitle = "Data from fivethirtyeight and Trump Twitter Archive") + 
+  scale_y_continuous(name = "Approval Rating") + 
+  scale_x_continuous(name = "Total Tweets") 
+
+cor_q1b <- cor(joined_data$approve, joined_data$total_tweets)
+
+```
+
+The correlation coefficient between the approval rating and the number of tweets is `r round(cor_q1b,4)`. This value is very close to 0 indicating no strong relationship between the two variables. 
+
+## Question 2: Run a multivariate regression
+2A) <br/>
+
+```{r q2a, echo=FALSE}
+
+# Create a variable “high_q” which takes a value of 1 if the poll is rated A+,
+# A, or A-, and 0 if the rating is lower or missing.
+
+joined_data <- joined_data %>%
+  mutate(high_q = map_dbl(grade, ~ case_when(. %in% c("A+", "A", "A-") ~ 1, 
+                                             TRUE ~ 0)))
+
+# Run a linear regression of approve on two variables: total_tweets and high_q,
+# using lm.
+
+approval_model <- lm(approve ~ total_tweets + high_q, data = joined_data)
+
+# Get regression table. fmt_number makes all values 3dp. In the sample table
+# upper bound was to 4dp but I have changed this to 3 for consistency
+
+approval_model %>%
+  tidy(conf.int = TRUE) %>%
+  select(term, estimate, conf.low, conf.high) %>%
+  gt() %>%
+  fmt_number(columns = vars(estimate, conf.low, conf.high), 
+             decimals = 3) %>%
+  tab_header(title = "Effect of Number of Tweets and Poll Quality on Reported Approval Rating",
+     subtitle = "Data from fivethirtyeight and Trump Tweet Archive") %>%
+  cols_label(term = "Variable",
+             estimate = "Estimate",
+             conf.low = "Lower bound",
+             conf.high = "Upper bound")
+
+```
+<br/> 2B) <br/>
+
+The estimated average treatment effect of high_q is -2.347. This means, for a high quality poll, we expect the approval rating to be 2.347 percentage points lower, with other variables (in this case only total_tweets) being constant, than if the same poll had been a low_quality one. A frequentist would say that 95% of the time we would observe this difference to be between -2.792 and -1.902 whilst a Baysian says that a true value for this effect exists and we should be 95% confident it lies within this range. 
+
+<br/> 2C) <br/>
+
+```{r q2c, echo=FALSE}
+
+# Run the same model but with an interaction term
+
+approval_model_int <- lm(approve ~ total_tweets * high_q, data = joined_data)
+
+# Get regression table. fmt_number makes all values 3dp. In the sample table
+# upper bound was to 4dp but I have changed this to 3 for consistency
+
+approval_model_int %>%
+  tidy(conf.int = TRUE) %>%
+  select(term, estimate, conf.low, conf.high) %>%
+  gt() %>%
+  fmt_number(columns = vars(estimate, conf.low, conf.high), 
+             decimals = 3) %>%
+  tab_header(title = "Effect of Number of Tweets and Poll Quality on Reported Approval Rating",
+     subtitle = "Data from fivethirtyeight and Trump Tweet Archive") %>%
+  cols_label(term = "Variable",
+             estimate = "Estimate",
+             conf.low = "Lower bound",
+             conf.high = "Upper bound")
+
+```
+<br/> 2D) <br/>
+
+The formula would be: fitted value = 41.629 + 84 * -0.006 + 1 * -2.701 + 1 * 84 * 0.021
+<br/>
+This gives: fitted value = 40.188 which is off by a small amount due to earlier rounding. 
+
+We can see the same value produced by the following code: <br/>
+```{r q2d, echo=TRUE}
+
+# Using the predict method 
+
+q2d <- predict(approval_model_int, newdata = tibble(high_q = 1, total_tweets = 84))
+
+```
+Fitted value using predict function is `r round(q2d,3)`.
+
+<br/> 2E) <br/>
+The baseline group in this regression are Republicans. Intercept is interpretable as estimated approval score for republicans when total_tweets = 0. Democrats, when there are 0 tweets, have estimated approval of intercept + democrat. 
+Next, we calculate two ATEs – one for the Republican population and one for the Democrat population. The coefficient of total_tweets represents the ATE on Republicans. The ATE on Democrats is total_tweets + total_tweets:democrat. For each population the ATEs represent the change in approval for one additional tweet where change is the expected difference in approval between a world where 1 additional tweet was or was not sent. We are unable to observe both worlds. Implicitly, by looking at our ATEs only within the groups of Democrats or Republicans we are saying “with other coefficients remaining equal” - the only other coefficient is democrat which does not change within the group: 1 for Democrats and 0 for Republicans.
+This may be interpreted as predictive because assignment of the number of tweets in a week was done randomly allowing us to assume that other confounding variables on approval will on average cancel each other out over the sampled observations, so estimates of ATE will be representative and unbiased. 
+
+<br/>
+
+## Question 3: Generalize to many regressions
+
+3A)
+```{r q3, echo=FALSE}
+
+# Create new variables
+
+poll$month <- ceiling(poll$week/4)
+tweets$month <- ceiling(tweets$week/4)
+
+# Filter your poll data to use only the first 11 months
+
+poll <- poll %>%
+  filter(month < 12)
+
+# Summarise as tweets per month
+
+tweets_summary_month <- tweets %>%
+  group_by(month) %>%
+  summarise(total_tweets_month = n())
+
+# Join the data sets on month and then add on the weekly tweet data figures as
+# it transpires we need these for some of the regressions
+
+joined_data_month <- left_join(poll, tweets_summary_month, by = "month") %>%
+  mutate(total_tweets_month = map_dbl(total_tweets_month, ~ case_when(is.na(.) ~ 0,
+                                                          TRUE ~ as.numeric(.)))) %>%
+  mutate(high_q = map_dbl(grade, ~ case_when(. %in% c("A+", "A", "A-") ~ 1, 
+                                             TRUE ~ 0))) %>%
+  left_join(tweets_summary, by = "week") %>%
+  mutate(total_tweets = map_dbl(total_tweets, ~ case_when(is.na(.) ~ 0,
+                                                          TRUE ~ as.numeric(.))))
+
+
+
+# Save the 4 plots to variables to print them later
+
+# First calculate the necessary coefficients for the data split by month which
+# will be used for both LHS graphs
+
+interim_LHS <- joined_data_month %>%
+  group_by(month) %>%
+  nest() %>%
+  mutate(mod = map(data, ~ lm(approve ~ total_tweets + high_q, data = .)),
+         reg_results = map(mod, ~ tidy(., conf.int = TRUE)), 
+         est_total_tweets = map_dbl(reg_results, 
+                                    ~ filter(., term == "total_tweets") %>%
+                                      pull(estimate)),
+         upper_total_tweets = map_dbl(reg_results, 
+                                    ~ filter(., term == "total_tweets") %>%
+                                      pull(conf.high)),
+         lower_total_tweets = map_dbl(reg_results, 
+                                    ~ filter(., term == "total_tweets") %>%
+                                      pull(conf.low)),
+         est_high_q = map_dbl(reg_results, 
+                                    ~ filter(., term == "high_q") %>%
+                                      pull(estimate)),
+         upper_high_q = map_dbl(reg_results, 
+                                    ~ filter(., term == "high_q") %>%
+                                      pull(conf.high)),
+         lower_high_q = map_dbl(reg_results, 
+                                    ~ filter(., term == "high_q") %>%
+                                      pull(conf.low))
+        )
+  
+
+# Top left. Following the example with error bars in the book.
+
+tl <- interim_LHS %>%
+  ggplot(aes(x = month, 
+             y = est_total_tweets, 
+             ymin = lower_total_tweets, 
+             ymax = upper_total_tweets)) + 
+  geom_point(color = "blue") + 
+  geom_errorbar(color = "blue") + 
+  theme_classic() + 
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(title = "Effect of Total Tweets \non Estimated Approval Rating",
+       subtitle = "Controlling for Poll Quality \nTweets totalled weekly") + 
+  scale_y_continuous(name = "Coefficient") + 
+  scale_x_continuous(name = "Month")
+
+# Top right
+
+# Summarise by high q and month to get the mean approval then plot two lines
+
+tr <- joined_data_month %>%
+  mutate(high_q = as.factor(high_q)) %>%
+  group_by(high_q, month) %>%
+  summarise(mean_approval = mean(approve)) %>%
+  ggplot(aes(month, mean_approval, color = high_q)) + 
+  geom_line() + 
+  theme_classic() + 
+  labs(title = "Approval Rating \nby Poll Quality") + 
+  scale_y_continuous(name = "Average Approval Rating") + 
+  scale_x_discrete(name = "Month") + 
+  scale_color_manual(name = "Poll Quality", 
+                     labels = c("A+ to A-", "Lower than A- or missing"), 
+                     values = c("Blue", "Red")) + 
+  theme(legend.position = "top")
+  
+# Bottom left. Much the same as top left. 
+
+bl <- interim_LHS %>%
+  ggplot(aes(x = month, 
+             y = est_high_q, 
+             ymin = lower_high_q, 
+             ymax = upper_high_q)) + 
+  geom_point(color = "green") + 
+  geom_errorbar(color = "green") + 
+  theme_classic() + 
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(title = "Effect of Poll Quality \non Estimated Approval Rating",
+       subtitle = "Controlling for Total Tweets (Weekly)") + 
+  scale_y_continuous(name = "Coefficient") + 
+  scale_x_continuous(name = "Month")
+
+# Bottom right
+
+# Given joining data anyway gives me a count of tweets per month I use this and
+# then take unique entries so I only have one value per month
+
+br <- joined_data_month %>%
+  select(month, total_tweets_month) %>%
+  unique() %>%
+  ggplot(aes(month, total_tweets_month)) + 
+  geom_col() + 
+  theme_classic() + 
+  labs(title = "Total Tweets",
+       subtitle = "President Trump") + 
+  scale_y_continuous(name = "Tweets") + 
+  scale_x_continuous(name = "Month") 
+
+```
+```{r print_charts, echo=FALSE}
+
+(tl | tr) / (bl | br)
+
+
+```
+

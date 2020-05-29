@@ -1,0 +1,248 @@
+---
+title: "ps_3"
+author: "James Hutt"
+date: "16/02/2020"
+output: html_document
+---
+
+<!-- Load necessary libraries in setup chunk -->
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(janitor)
+library(gt)
+library(forcats)
+library(glue)
+library(rvest)
+library(tidyverse)
+```
+
+<!-- Load data using read_csv. Skipping header rows. Allowing default variable type assignment. Specifying values for na treatment. Cleaning with Janitor package.  -->
+```{r load_data, include=FALSE}
+x <- read_csv("raw-data/xian_data.csv", 
+              skip = 3,
+              na = c("", "undefined")) %>%
+  clean_names()
+
+load("r-data/demographics.Rdata")
+
+```
+
+
+<!-- Code chunk for finding the madlib answers, to be presented later -->
+```{r madlib_answers, echo=FALSE}
+
+# Given treatment group is indicated by 1 in the treatment column the total number in the group is just the sum of this col
+x1 <- sum(x$treatment)
+
+# Filter for treatment group. Summarise by the average. Round this value to a reasonable degree of precision given the original data precision. 
+x2 <- x %>%
+  filter(treatment == 1) %>%
+  summarise(eval = mean(eval_gov_overall, na.rm = TRUE)) %>%
+  pull(eval) %>%
+  round(2)
+
+# Group by rating, count which rating is highest, pick the highest count - the mode - and return this rating
+x3 <- x %>%
+  group_by(eval_gov_traffic) %>%
+  mutate(N = n()) %>%
+  ungroup() %>%
+  filter(N == max(N)) %>% 
+  slice(1) %>%
+  pull(eval_gov_traffic)
+
+# Filter for a rating of 10, using or condition. Tally function returns the number of rows 
+x4 <- x %>%
+  filter(eval_gov_demo == 10 | eval_gov_overall == 10 | eval_gov_traffic == 10) %>%
+  tally()
+
+# Filter for a rating of 10, using and condition. Tally function returns the number of rows 
+x5 <- x %>%
+  filter(eval_gov_demo == 10 & eval_gov_overall == 10 & eval_gov_traffic == 10) %>%
+  tally()
+
+# newssources are listed alphabetically when multiple are selected, so all responses containing A start with A. Filter for these and count rows with tally. 
+x6 <- x %>%
+  filter(startsWith(news_source, 'A')) %>%
+  tally()
+
+# filter for locations ending with square, then in the location column look for unique values and report them.
+x7 <- x %>% 
+  filter(endsWith(location, "square")) %>%
+  select(location) %>%
+  unique() %>%
+  pull(location)
+
+```
+
+## Mad Libs
+
+##### Fill in the answers to these Mad Libs, using the commands that we have learned in the readings and in class.
+
+`r x1` respondents are in the treatment group.
+
+Among respondents from the treatment group, the government has an average `r x2` rating.
+
+The most common rating for the government’s handling of traffic is `r x3`.
+
+`r x4` respondents have given the government a 10 rating overall or on demolitions or on traffic.
+
+But only `r x5` gave the government a 10 rating overall and on demolitions and on traffic.
+
+The number of respondents who get their news from Television is `r x6`
+
+Of the 4 different locations where the respondents were surveyed, the following two locations end with “square”: `r x7`
+
+<br/><br/>
+
+## Data Wrangling
+
+1. Make us a gt table like this of the first 10 observations of these four variables in its current, untidy format.
+<br/><br/>
+```{r DW1, echo=FALSE}
+
+x_ratings <- x %>%
+  select(Respondent_number = respondent, 
+         Overall = eval_gov_overall, 
+         Traffic = eval_gov_traffic, 
+         Demolitions = eval_gov_demo) 
+
+x_ratings %>% head(10) %>%
+  gt() %>%
+  tab_spanner(label = "Evaluations of Government Performance", columns = vars("Overall", "Traffic", "Demolitions")) %>%
+  cols_label(Respondent_number = "Respondent Number") %>%
+  tab_header(title = "Untidy Data")
+  
+```
+<br/><br/>
+b) Make a similar table, but in tidy format 
+<br/><br/>
+```{r DW2, echo=FALSE}
+
+x_ratings_tidy <- x_ratings %>%
+  pivot_longer(Overall:Demolitions, names_to = "Type_of_Evaluation", values_to = "Performance_rating") %>%
+  mutate(Type_of_Evaluation = ifelse(grepl("Demolitions", Type_of_Evaluation), "Demo", Type_of_Evaluation))
+
+x_ratings_tidy %>% head(30) %>%
+  gt() %>%
+  cols_label(Respondent_number = "Respondent Number", 
+             Type_of_Evaluation = "Type of Evaluation",
+             Performance_rating = "Performance Rating") %>%
+  tab_header(title = "Tidy Data")
+
+```
+
+<br/><br/>
+2. Make a table showing a potential outcome analysis, where the outcome is the respondent’s overall evaluation of their local government. Use the first 10 respondents.
+<br/><br/>
+
+```{r DW3, echo=FALSE}
+x_potential_outcomes <- x %>%
+  select(respondent, treatment, control, Overall = eval_gov_overall) %>% 
+  mutate(under_control = ifelse(treatment == 0, Overall, '?')) %>%
+  mutate(under_treatment = ifelse(treatment == 1, Overall, '?'))
+
+x_potential_outcomes %>%
+  head(10) %>%
+  select(-Overall) %>%
+  gt() %>%
+  cols_align("center") %>%
+  cols_label(respondent = "Respondent", 
+             treatment = "Treatment",
+             control = "Control",
+             under_control = "Under Control",
+             under_treatment = "Under Treatment") %>%
+  tab_header(title = "Potential Outcomes") %>%
+  tab_spanner(label = "Potential Outcomes", 
+              columns = vars("under_control","under_treatment")) %>%
+  tab_footnote(footnote = "Treatment is a 2 minute video about Chinese sports performance", 
+               locations = cells_title("title")) 
+  
+
+```
+
+<br/><br/>
+3. Make a table (using gt()) that displays the age and gender of the 3 treated respondents with the highest evaluations of the government’s performance on traffic.
+<br/><br/> 
+```{r demo_join, echo=FALSE}
+
+x %>% 
+  left_join(demographics, by = "respondent") %>%
+  filter(treatment == 1) %>%
+  select(respondent, eval_gov_traffic, age, gender) %>%
+  arrange(desc(eval_gov_traffic)) %>%
+  head(3) %>%
+  gt() %>%
+  cols_label(respondent = "Respondent", 
+             eval_gov_traffic = "Evaluate Government Performance",
+             age = "Age",
+             gender = "Gender") %>%
+  tab_header(title = "Highest Evaluators of Government Performance on Traffic:", 
+             subtitle = "Among Treated Individuals") %>%
+  tab_footnote(footnote = "Evaluation on Scale from 1 to 10", 
+               locations = cells_title("title"))
+  
+  
+
+
+
+
+```
+<br/><br/>
+4. Replicate this plot, which shows evaluations of government performance based on treatment status and education.
+<br/><br/> 
+```{r DW4, echo=FALSE}
+
+x_dem <- x %>%
+  left_join(demographics, by = "respondent")
+
+x_dem_sorted <- x_dem %>% filter(!is.na(education))
+
+x_dem_sorted$education <- factor(x_dem_sorted$education, 
+                                 levels =c("Primary",
+                                           "Incomplete secondary",
+                                           "Complete secondary",
+                                           "Some university",
+                                           "University completed"))
+
+x_dem_sorted %>%
+  group_by(education, treatment) %>%
+  summarise(meanEval = mean(eval_gov_overall)) %>%
+  ggplot(aes(education, meanEval, color = as.factor(treatment))) + 
+  geom_point() + 
+  theme_classic() +
+  labs(title = "Government Performance Evaluations \n By Treatment Group \n and Education Level",
+       x = "Education",
+       y = "Average Evaluation",
+       color = "Viewed Sports Video") + 
+  theme(legend.position = "top", axis.text.x = element_text(angle = 45, hjust = 1))
+  
+```
+<br/><br/>
+5. Now, try your hand at using the rvest package, which we can use to get tables from the internet. Using this wikipedia page, grab the table of country gold medals and make a plot like this:
+<br/><br/> 
+
+```{r DW5, echo=FALSE}
+url <- 'https://en.wikipedia.org/wiki/2008_Summer_Olympics'
+
+webpage <- read_html(url)
+
+medals <- url %>%
+  read_html() %>%
+  html_node(xpath = '//*[@id="mw-content-text"]/div/table[4]') %>%
+  html_table(fill = TRUE)
+
+medals %>%
+  filter(Rank %in% c(1:10)) %>%
+  mutate(Nation = ifelse(Nation == "China*", "China", Nation)) %>%
+  mutate(Nation = fct_reorder(Nation, Gold, .desc = TRUE)) %>%
+  ggplot(aes(Nation, Gold)) + 
+  geom_col() + 
+  theme_classic() +
+  labs(title = "Number of Gold Medals in 2008 Beijing Olympics",
+     x = "Country",
+     y = "Gold Medals")
+  
+
+```
+

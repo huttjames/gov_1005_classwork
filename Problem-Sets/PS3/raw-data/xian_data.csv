@@ -1,0 +1,120 @@
+,Bread and Circuses: Sports and Public Opinion,,,,,,
+,in China,,,,,,
+,"Dan Chen1,* and Andrew W. MacDonald2",,,,,,
+respondent,location,news_source,eval_gov_overall,eval_gov_demo,eval_gov_traffic,treatment,control
+1,zhonglou,A,7,4,5,1,0
+2,zhonglou,E,5,8,8,1,0
+3,zhonglou,A,3,2,1,0,1
+4,zhonglou,,undefined,undefined,undefined,1,0
+5,yinghua square,E,9,8,8,0,1
+6,zhonglou,E,6,6,6,0,1
+7,zhonglou,E,8,8,8,0,1
+8,zhonglou,,5,1,5,0,1
+9,yinghua square,E,2,2,6,0,1
+10,yinghua square,A,5,4,9,1,0
+11,xiaozhai,E,4,4,4,0,1
+12,xiaozhai,,8,8,7,0,1
+13,zhonglou,E,9,10,9,1,0
+14,zhonglou,,undefined,undefined,undefined,1,0
+15,zhonglou,A,7,7,6,1,0
+16,zhonglou,E,7,8,2,0,1
+17,zhonglou,E,1,1,1,0,1
+18,zhonglou,A,1,1,1,0,1
+19,zhonglou,E,2,5,4,0,1
+20,zhonglou,E,8,7,5,0,1
+21,zhonglou,E,5,8,8,1,0
+22,zhonglou,ABCDE,10,10,10,1,0
+23,zhonglou,AE,1,1,4,0,1
+24,zhonglou,A,7,8,7,1,0
+25,zhonglou,E,7,6,7,0,1
+26,zhonglou,A,7,8,8,1,0
+27,zhonglou,E,8,6,6,0,1
+28,zhonglou,AE,8,8,3,0,1
+29,zhonglou,E,3,2,5,0,1
+30,zhonglou,E,7,5,7,1,0
+31,zhonglou,E,7,7,5,1,0
+32,xiaozhai,B,4,5,6,1,0
+33,xiaozhai,E,3,3,3,0,1
+34,xiaozhai,E,8,8,8,1,0
+35,xiaozhai,E,6,7,6,0,1
+36,xiaozhai,A,9,7,4,0,1
+37,xiaozhai,A,2,6,6,0,1
+38,zhonglou,E,5,5,5,0,1
+39,zhonglou,E,8,4,4,0,1
+40,zhonglou,E,5,5,1,0,1
+41,zhonglou,AE,7,8,8,0,1
+42,zhonglou,E,6,7,9,0,1
+43,zhonglou,E,7,7,8,1,0
+44,zhonglou,E,6,5,5,1,0
+45,zhonglou,A,8,3,10,0,1
+46,zhonglou,E,6,6,5,0,1
+47,chang'an square,AE,9,7,8,0,1
+48,chang'an square,A,9,7,8,0,1
+49,chang'an square,A,9,8,8,0,1
+50,chang'an square,A,9,7,9,1,0
+51,chang'an square,A,10,6,8,0,1
+52,xiaozhai,E,7,7,7,1,0
+53,xiaozhai,E,8,7,8,1,0
+54,xiaozhai,A,7,6,5,0,1
+55,xiaozhai,E,5,5,6,0,1
+56,xiaozhai,E,9,7,7,1,0
+57,xiaozhai,A,4,6,6,0,1
+58,zhonglou,A,6,9,8,0,1
+59,zhonglou,E,7,8,8,1,0
+60,zhonglou,E,5,5,3,0,1
+61,yinghua square,A,10,10,5,1,0
+62,yinghua square,A,1,1,5,0,1
+63,yinghua square,A,5,5,5,0,1
+64,xiaozhai,A,5,4,5,0,1
+65,xiaozhai,E,9,8,8,1,0
+66,xiaozhai,E,6,6,5,1,0
+67,xiaozhai,E,6,6,6,0,1
+68,xiaozhai,E,4,6,5,1,0
+69,xiaozhai,E,6,7,8,0,1
+70,xiaozhai,A,5,6,7,0,1
+71,zhonglou,A,4,6,3,0,1
+72,zhonglou,E,8,8,6,1,0
+73,zhonglou,A,8,6,7,1,0
+74,zhonglou,E,8,6,7,1,0
+75,zhonglou,E,6,5,4,0,1
+76,zhonglou,A,5,9,6,0,1
+77,zhonglou,E,8,7,9,0,1
+78,yinghua square,A,1,1,1,0,1
+79,xiaozhai,E,9,5,7,0,1
+80,xiaozhai,ABE,5,7,7,1,0
+81,xiaozhai,AC,9,6,5,0,1
+82,xiaozhai,E,9,9,10,1,0
+83,zhonglou,E,8,7,6,1,0
+84,zhonglou,E,7,7,8,1,0
+85,zhonglou,E,3,4,5,1,0
+86,zhonglou,E,7,7,7,1,0
+87,zhonglou,E,8,6,5,1,0
+88,chang'an square,E,7,8,9,1,0
+89,chang'an square,F,8,6,7,0,1
+90,chang'an square,E,7,6,8,1,0
+91,chang'an square,BE,7,5,9,1,0
+92,chang'an square,E,8,5,7,0,1
+93,zhonglou,E,10,7,9,1,0
+94,zhonglou,E,8,8,3,1,0
+95,zhonglou,E,5,5,5,1,0
+96,zhonglou,ABE,5,5,5,0,1
+97,zhonglou,E,3,1,5,0,1
+98,zhonglou,F,1,1,1,1,0
+99,zhonglou,E,8,9,10,1,0
+100,zhonglou,E,10,8,8,0,1
+101,zhonglou,E,1,4,5,0,1
+102,zhonglou,E,6,8,5,0,1
+103,zhonglou,E,9,7,6,0,1
+104,xiaozhai,E,7,3,4,1,0
+105,xiaozhai,E,7,7,7,0,1
+106,xiaozhai,E,8,8,8,1,0
+107,xiaozhai,E,8,8,8,0,1
+108,zhonglou,E,6,7,8,1,0
+109,zhonglou,E,5,8,6,0,1
+110,zhonglou,E,6,6,7,1,0
+111,zhonglou,E,6,5,5,0,1
+112,zhonglou,E,5,6,7,0,1
+113,zhonglou,E,8,8,8,1,0
+114,zhonglou,A,5,5,2,0,1
+115,chang'an square,A,1,5,5,1,0
+116,chang'an square,E,5,5,5,1,0

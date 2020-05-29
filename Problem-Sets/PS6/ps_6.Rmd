@@ -1,0 +1,338 @@
+---
+title: "ps_6"
+author: "James Hutt"
+date: "20/03/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(gt)
+library(infer)
+library(tidyverse)
+```
+```{r create_deck, echo=FALSE}
+
+# Deck function builds each column row by row. I decided to build the points
+# using hard coded rep function rather than by dynamically checking the value of
+# the value column and assigning a value because the deck is relatively
+# immutable, we are not going to regularly have to reassign points to the cards
+# and so hard coding is not too risky. The suits column is just done simply by
+# rep and the name column by concatenating the values of the other columns with
+# the function paste. We then call the function at the end to create the object
+# deck which will be available for the remainder of the PS.
+
+create_deck <- function(){
+  deck <- tibble(value = rep(c(2:10, "J", "Q", "K", "A"), 4),
+                 points = rep(c(2:9, rep(10,5)), 4), 
+                 suit = c(rep("diamonds", 13),
+                          rep("hearts", 13),
+                          rep("clubs", 13),
+                          rep("spades", 13)),
+                 name = paste(value, " of ", suit, sep = ""))
+
+}
+
+# The object deck is at the moment only named within the function call. Whilst
+# the function is creating this object and the object could then be manipulated,
+# if we want to refer to the output of the function as deck globally we need to
+# assign the output to a variable called deck.
+
+deck <- create_deck()
+
+```
+```{r draw_card, echo=FALSE}
+
+# Setting default values of the function to 1 and name respectively so that if
+# no arguments are entered the user will see 1 card drawn. Replace = false
+# chosen because when drawing cards from a deck we would not replace them, so no
+# card can be drawn twice. Sample_n pulls n rows from the data frame. The pull
+# function then returns the column of interest which is stored in the variable
+# report.
+
+draw_card <- function(n = 1, report = "name"){
+  sample_n(deck, size = n, replace = FALSE) %>% 
+    pull(report)
+}
+
+```
+
+## Q1: Sampling and Confidence Intervals
+<br/>
+1A)
+```{r q1a, echo=FALSE}
+
+set.seed(2)
+draw_card(4, "name")
+
+```
+<br/>
+1B) 
+```{r q1b, echo=FALSE}
+
+set.seed(3)
+
+# Making the tibble with 2 columns. The first uses a mpa function to produce 100
+# rows, in each row a list containing the results of calling draw_card(5) are
+# stored. In the second column we use a map_lgl which will check the list in
+# column draw and return a lgl value. The check condition says if any of the
+# values in ., that is the list being checked, are in the list of face cards
+# then return true. Previously we have used .[[1]] syntax to pull an element of
+# the list. Wrapping the whole list . inside any means a loop checks each
+# element of the vector for the condition.
+
+hands <- tibble(
+  draw = map(1:100, ~ draw_card(5, "value")),
+  face = map_lgl(draw, 
+                 ~ ifelse(any(. %in% c("J", "Q", "K")),
+                          TRUE,
+                          FALSE)),
+  )
+
+# Printing the gt in the format, with the headings specified in the example
+
+hands %>%
+  head(5) %>% 
+  gt() %>% 
+  tab_header(title = "Hands of Five Cards",
+     subtitle = "Checking for Face Values") %>%
+  cols_label(draw = "Draw",
+             face = "Face Cards?")
+
+```
+<br/>
+1C) 
+```{r q1c, echo=FALSE}
+
+set.seed(4)
+
+# Not using the draw_card function which as designed only allows 1 attribute to
+# be pulled. Instead I reimplement with sample_n then select just the 2 columns
+# of interest. I have saved the sample to an object because we need it for
+# questions 1E as this is our original 12 card sample.
+
+s12_1 <- deck %>%
+  sample_n(12, replace = FALSE)
+
+s12_1 %>%
+  select(name, points) %>% 
+  gt() %>% 
+  tab_header(title = "Sample of 12 Cards",
+     subtitle = "Points for Each Card are Shown") %>%
+  cols_label(name = "Name",
+             points = "Point Value")
+
+om <- mean(s12_1$points)
+
+```
+<br/>
+1D) The mean number of points in our entire deck is `r round(mean(deck$points),3)`.
+
+<br/>
+1E)
+<br/>
+```{r q1e, echo=FALSE}
+
+set.seed(5)
+
+# Rather than using rep_sample_n with 1000 replicates and grouping by replicate
+# ID, which would not have used a map function I have used map to store the
+# details of each resample as an object in a list column. This means the tibble
+# has only 3 cols initially: ID and then the details of the resample. I would
+# have used the first method but the instructions explicitly called for the
+# second.
+
+# Having made a tibble with 2 cols I amended my code to add a 3rd col which
+# contains the mean points in that sample. For future reference the syntax says
+# (1) look at the sample column, which is in itself contains a tibble object.
+# (2) within this column look at only the 3rd column, this is the .[[3]] syntax.
+# (3) call the mean of this column and store it in mean points.
+
+
+virtual_resamples <- tibble(replicate_id = 1:1000, 
+                            sample = map(1:1000,
+                                         ~ rep_sample_n(s12_1, 
+                                                        size = 12, 
+                                                        replace = TRUE, 
+                                                        reps = 1)),
+                            mean_points = map_dbl(sample,
+                                                  ~ mean(.[[3]]))
+)
+
+virtual_resamples.mean <- mean(virtual_resamples$mean_points)
+
+# Following discussion on Piazza I have labelled the vlines with where I have
+# got the means from and the values. The original sample mean is the mean points
+# value of the 12 cards drawn as the sample of 12, not of the whole deck
+
+ggplot(virtual_resamples, aes(x = mean_points)) + 
+  geom_histogram(bins = 20) +
+  labs(title = "Distribution of 1000 Bootstrapped Resamples",
+       subtitle = "From original 12 card sample with mean 7.167",
+       x = "Points",
+       y = "Samples") + 
+  theme_classic() + 
+  geom_vline(xintercept = om, col = "red") + 
+  geom_text(aes(x = om, y = 70,
+                label="Original sample mean = 7.167 \n"),
+            colour="red", angle=90) + 
+  geom_vline(xintercept = virtual_resamples.mean, col = "blue") + 
+  geom_text(aes(x = virtual_resamples.mean, y = 70, 
+                label="\n Bootstrapped Sample Mean = 7.20175"),
+            colour="blue", angle=90)
+
+```
+<br/>
+
+The mean of the bootstrapped sample doesnt match the original sample because by setting replace = TRUE we are adding variation into the sampling procedure, which is the reason we conduct bootstrapping. As an aside it is also not the same as the true mean, which we can calculate in this case, this is because bootstrapping is still dependent on the initial sample so is heavily influenced by that sample which may, by random variation, have a mean different from the true mean. 
+
+<br/>
+1F)
+
+```{r q1f, echo=FALSE}
+
+# First create a function which takes the data and confidence level as an input
+# and returns a list containing the lower and uppoer bounds of the interval at
+# that confidence level. This is done by calculating the probs and then calling
+# the quantile function.
+
+find_ci <- function(data, level = 0.95){
+  
+  # Get lower and upper probabilities
+  
+  lower_prob = (1 - level) / 2
+  upper_prob = level + lower_prob
+  
+  # Calculate the bounds from these probs 
+  
+  lower_bound = quantile(data, probs = lower_prob)
+  upper_bound = quantile(data, probs = upper_prob)
+  
+  # Return these probs as a list to appropriate precision 
+  
+  return(c(round(lower_bound, 1), round(upper_bound, 1)))
+  
+}
+
+# Create a table of confidence intervals, with the first column showing the
+# levels we want and the second column calling the function just created to find
+# the bounds
+
+ci <- tibble(level = c(0.8, 0.9, 0.95, 0.99), 
+             interval = map(level, ~ find_ci(data = virtual_resamples$mean_points, 
+                                             level = .)))
+
+# Print this tibble as a gt
+
+ci %>%
+  gt() %>% 
+  tab_header(title = "Confidence Intervals for Average Point Value",
+     subtitle = "Bootstrapped Resamples on a 12 Card Hand") %>%
+  cols_label(level = "Level",
+             interval = "Interval") %>% 
+  tab_source_note("Original sample mean: 7.167 \n Mean points of the entire deck: 7.231")
+
+```
+<br/>
+1F)
+<br/>
+
+```{r q1g, echo=FALSE}
+
+width_ci <- function(n, level){
+  
+  # Step 1: Draw a sample of n cards from the deck 
+  
+  sample_size_n <- sample_n(deck, size = n, replace = FALSE)
+  
+  # Step 2: Create 1000 bootstrapped samples from this initial sample 
+  
+  n_sized_virtual_resamples <- tibble(replicate_id = 1:1000, 
+                            sample = map(1:1000,
+                                         ~ rep_sample_n(sample_size_n, 
+                                                        size = n, 
+                                                        replace = TRUE, 
+                                                        reps = 1)),
+                            mean_points = map_dbl(sample,
+                                                  ~ mean(.[[3]]))
+)
+  
+  # Step 3: Calculate the upper and lower bounds of the CI, leveraging find_ci
+  # written earlier but instead returning the width
+  
+  CIs <- find_ci(n_sized_virtual_resamples$mean_points, level = level)
+  
+  # Step 4: Return the difference between the upper and lower bounds. CIs also
+  # contains the labels as levels so the subscript 1 means we return only the
+  # difference in bounds and not the difference in confidence levels
+  
+  diff(CIs)[[1]]
+  
+}
+
+# I wasn't sure whether, for each of the 51 sample sizes, doing 1 run of 1000
+# virtual sims and then taking the confidence levels of 90, 95, 99 all from this
+# same list of 1000 means. Or whether we should run a new set of 1000 virtual
+# sims for each of the 3 widths. The first method would seem to better
+# demonstrate the concept that the CI gets wider on the same set of data, but
+# the second method is the one which would lend itself to calling the width_ci
+# function in each of the 3 columns. If we were to use the same run of 1000
+# virtual samples for all 3 columns we would need the function to be outputting
+# all the widths at once, because the object containing the 1000 bootstrapped
+# samples is only created as a temporary object within in the function. Given
+# the prompt to make 3 columns and then pivot longer I have gone for this
+# method, which means that the CIs are being calculated off different sets of
+# 1000 resamples for each width. This makes my graph slightly different from the
+# example though still shows the same pattern.
+
+set.seed(6)
+
+x_1g <- tibble(sample_size = 2:52, 
+               width_90 = map_dbl(sample_size,
+                                  ~ width_ci(., 0.9)),
+               width_95 = map_dbl(sample_size,
+                                  ~ width_ci(., 0.95)),
+               width_99 = map_dbl(sample_size,
+                                  ~ width_ci(., 0.99)),)
+
+# Overwrite the variable storing the tibble in the longer format ready for
+# plotting
+
+x_1g <- pivot_longer(x_1g, 
+             width_90:width_99, 
+             names_to = "interval", 
+             names_prefix = "width_", 
+             values_to = "width") 
+
+# Save the plot as an object so it can be easily saved and shown 
+
+x_1g_plot <- ggplot(x_1g, aes(x = sample_size, y = width, color = interval)) + 
+  geom_point() + 
+  theme_classic() + 
+  labs(title = "Width of Bootstrapped Confidence Intervals For Different Sample Sizes",
+       subtitle = "Calculating the Mean Point Value from a Deck of Cards",
+       x = "Sample Size",
+       y = "Width of Confidence Interval \n (Percentile Method)", 
+       color = "Confidence Level")
+
+# Render the plot 
+
+x_1g_plot
+
+
+
+
+```
+```{r ggsave, include=FALSE}
+
+# Suppressing the default ggsave message. Save the plot using ggsave. By default
+# the last plot is saved.
+
+ggsave("ps_6_shiny/dist_plot.png", )
+
+```
+
+## Question 2: Shiny
+
+https://james-hutt.shinyapps.io/ps_6_shiny/

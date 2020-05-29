@@ -1,0 +1,76 @@
+---
+title: "ps_5_rpub"
+author: "James Hutt"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(haven)
+library(labelled)
+library(gt)
+library(infer)
+library(tidyverse)
+```
+
+```{r q5, echo=FALSE}
+
+# Using rep function in a manner analgous to the way we created an urn in class
+
+university <- tibble(id = 1:6120,
+                     grade = c(rep("freshman", 1800), 
+                               rep("sophomore", 1450),
+                               rep("junior", 1570), 
+                               rep("senior", 1300)))
+
+# Create a list of sizes then make this a named list
+
+sizes = c(25, 50, 100, 500)
+sizes <- set_names(sizes, nm = sizes)
+
+# Reset the seed
+
+set.seed(02139)
+
+# Call rep_sample_n on each size in the list and use map_df to bind them into a
+# dataframe
+
+university_samples_many <- map_df(sizes,
+                                  ~ rep_sample_n(university, 
+                                                 size = ., 
+                                                 reps = 5000),
+                                  .id = "sizes")
+
+# Count the number of freshmen in each sample
+
+university_samples_many <- university_samples_many %>% 
+  group_by(replicate, sizes, grade) %>%
+  summarize(count = n()) %>%
+  mutate(pct_grade = count / sum(count)) %>%
+  filter(grade == "freshman")
+
+# Plot as a density plot. Alpha set to 0.25 to see areas clearly where the plots
+# overlap.
+
+university_samples_many %>%
+  ggplot(aes(pct_grade, fill = sizes)) + 
+  geom_density(alpha = 0.25) + 
+  labs(title = "Distribution of Percentage Freshmen",
+       subtitle = "Average sampled percentage get closer to the true percentage as sample size increases", 
+       x = "Count", 
+       y = "Proportion of Freshmen", 
+       fill = "Size") + 
+  scale_fill_discrete(labels = c(25, 50, 100, 500)) + 
+  theme_classic()
+```
+
+```{r save_plot, include=FALSE}
+
+# Save the last produced plot in the specified file. Have set include=false so
+# that nothing is reported to the Rpub page as the message is just
+# informational.
+
+ggsave("graphics/dist_by_sample_size.png")
+
+```
+

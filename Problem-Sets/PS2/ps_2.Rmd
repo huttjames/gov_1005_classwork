@@ -1,0 +1,119 @@
+---
+title: "ps_2"
+author: "James Hutt"
+date: "07/02/2020"
+output: html_document
+code_download: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Load necessary libraries with tidyverse last to avoid clashes
+library(fivethirtyeight)
+library(gov.1005.data)
+library(ggthemes)
+library(tidyverse)
+```
+
+```{r madlib_answers, echo = FALSE}
+
+# filter the data set for each madlib using pull or summarise to extract necessary data
+
+x1 <- endorsements_2020 %>% 
+  arrange(date) %>% 
+  slice(1) %>% 
+  pull(date)
+
+x2 <- endorsements_2020 %>% 
+  arrange(desc(date)) %>% 
+  slice(1) %>% 
+  pull(date)
+
+x3 <- endorsements_2020 %>% 
+  filter(position == "mayor", endorsee == "Pete Buttigieg") %>% 
+  slice(1) %>% 
+  pull(endorser)
+
+x4 <- endorsements_2020 %>% 
+  filter(state == "NH") %>% 
+  summarise(mean(points))
+
+x5 <- endorsements_2020 %>% 
+  filter(endorsee %in% c("Amy Klobuchar", "Elizabeth Warren")) %>%
+  summarise(sum(points)) 
+
+# sapply function pulls out the class of the variable, having previously selected the one of interest. 
+
+x6a <- endorsements_2020 %>% 
+  select(position) %>% 
+  sapply(class)
+
+x6b<- endorsements_2020 %>% 
+  select(endorser) %>% 
+  sapply(class)
+
+x6c <- endorsements_2020 %>% 
+  select(points) %>% 
+  sapply(class)
+
+```
+
+## Mad Libs
+
+##### Fill in the answers to these Mad Libs, using the commands that we have learned in the readings and in class.
+
+1. The earliest date for an endorsement in the dataset is `r x1`
+
+2. The most recent date for an endorsement is `r x2`
+
+3. `r x3` is the mayor that has endorsed Pete Buttigieg.
+
+4. Endorsers from New Hampshire have an average of `r x4` endorsement points. 
+
+5. Between them, the two female candidates who remain in the race (Amy Klobuchar and Elizabeth Warren) have a total of `r x5` endorsement points.
+
+6. 
+a) The variable “position” is a `r x6a` class of variable.  
+
+b) The variable “endorser” is a `r x6b` class of variable.  
+
+c) The variable “points” is a `r x6c` class of variable.  
+
+
+
+## Put It Into Practice 
+```{r congress_chart}
+
+# Create the avg_age variable per party, per year
+
+ages <- gov.1005.data::congress %>%
+  filter(party %in% c("R", "D")) %>%
+  mutate(party = as.factor(party)) %>%
+  group_by(year, party) %>%
+  summarize(avg_age = mean(age))
+
+# Create the plot, of type line with the theme_fivethirtyeight and manipulate other aesthetics
+
+ggplot(ages, aes(year, avg_age, color = party)) + 
+  geom_line() + 
+  scale_colour_manual(values = c("D" = "blue2", "R" = "red2")) + 
+  labs(title = "Average Age of Members of Congress", 
+       subtitle = "At start of term, 1947-2013",
+       caption = "Source: fivethirtyeight package") + 
+  theme_fivethirtyeight() + 
+  scale_x_continuous(limits = c(1945, 2015), 
+                     breaks = c(1950, 1960, 1970, 1980, 1990, 2000, 2010)) + 
+  scale_y_continuous(limits = c(40, 63), 
+                     breaks = c(40, 45, 50, 55, 60)) + 
+  theme(legend.position = "none") + 
+  annotate("text", x = 2000, y = 58, 
+           label = "Democrats", color = "blue2") + 
+  annotate("text", x = 2010, y = 53, 
+           label = "Republicans", color = "red2") 
+  
+
+
+
+```
+

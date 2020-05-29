@@ -1,0 +1,57 @@
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidycensus)
+library(scales)
+library(tidyverse)
+
+census_api_key("f58b01c33eb9e4fe7ba4513f83a41a3ae14a957c")
+
+# Warning message suppressed because it is just helpful advice on how to
+# permanently install the API key. Whilst I have done this on my own machine, I
+# don't necessarily want to do this on other peoples machines when they run my
+# code.
+
+options(scipen=999)
+
+# Added this option on the advice of the Piazza post as I was also having the
+# scientific notation issue
+
+```
+
+```{r q2_data, include=FALSE}
+
+income_california <- get_acs(geography = "county",
+                  variables = c(medincome = "B19013_001"), 
+                  year = 2018,
+                  state = "CA",
+                  geometry = TRUE) 
+
+# Warning message is just for info that the data has been downloaded so this is
+# suppressed in the final output
+
+# Rather than filtering the initial data it is easier just to get the data
+# specifically for CA as a new object because the state is tied up in the NAME
+# variable
+
+```
+```{r q2, echo=FALSE}
+income_california %>%
+  ggplot(aes(fill = estimate)) +
+  geom_sf() +
+  scale_fill_viridis_c(direction = -1, 
+                       option = "plasma", 
+                       breaks = c(40000, 60000, 80000, 100000),
+                       labels = c("40,000", "60,000", "80,000", "100,000"),
+                       name = "Median Income") +
+  labs(title = "Median Income by County in California",
+       caption = "Source: American Community Survey 2018") +
+  theme_void()
+
+# Fill is estimate but the colour (outline) of the shapes isnt changed so that
+# county borders are easily visible. geom_sf produces the map. The scale colour
+# was chosen to match the example. Breaks are specified so that labels for the
+# breaks may also be specified. This allows the formatting to be overwritten by
+# the addition of commas in the numbers which are actually Chr when displayed.
+# The legend and title axes are the same as in the example.
+
+```
